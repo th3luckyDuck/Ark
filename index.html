@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html>
+  <head>
+
+    <!--
+    Ark - A game by Ducky - V1.3
+
+    A runner game for use in AltSpace
+
+    Thanks-
+    Ben G
+    Chris
+    Rella
+    Random test subjects
+
+    Anouncer voice - ryanconway - CC Licence - The original file has been heavly modified.
+    -->
+
+    <meta charset="utf-8">
+    <title>Ark</title>
+    <meta name="Ark" content="Ark">
+    <script src="https://aframe.io/releases/0.3.0/aframe.js"></script>
+    <script src="https://cdn.rawgit.com/AltspaceVR/AltspaceSDK/v2.4.5/dist/altspace.js"></script>
+    <script src="https://cdn.rawgit.com/norybiak/Aframe-gltf/v0.1.2/dist/aframe-gltf.js"></script>
+    <script src="bake-vertex-light.js"></script>
+    <script src="cached-model.js"></script>
+    <script>
+     AFRAME.registerComponent('syncclicks', {
+      init: function () {
+        var scene = document.querySelector('a-scene');
+        var el = this.el;
+        var self = this;
+        function sendEvent() {
+          var event = {sender: scene.object3D.uuid, el: el.id, time: Date.now()}
+          self.connection.instance.child('event').set(event);
+        }
+        function receiveEvent (snapshot){
+          var val = snapshot.val();
+          if (val.el === el.id && scene.object3D.uuid !== val.sender) { 
+            el.onclick();
+          }
+        }
+        altspace.utilities.sync.connect({appId: 'aframe-event-syncc', authorId: 'Ducky'}).then(function (connection){
+          self.connection = connection;
+          connection.instance.child('event').on('value', receiveEvent);
+          el.addEventListener('click', sendEvent);
+        });
+      },
+      remove: function () {
+        this.el.removeEventListener('click', sendEvent);
+        this.connection.instance.child('event').off('value', receiveEvent);
+      }
+    });
+    </script>
+
+</head>
+  <body>
+
+    <a-scene altspace="verticalAlign: middle; fullspace: true" vr-mode-ui="enabled: false"> <!-- sync-system="author: Ducky; app: ark"-->
+
+    <a-assets> 
+        <img id="leftp" src="left.jpg">
+        <img id="centerp" src="center.jpg">
+        <img id="rightp" src="right.jpg">
+        <img id="jumpp" src="jump.jpg">
+        <img id="mutep" src="mute.jpg">
+        <img id="arkwall" src="arkwall.jpg">
+        <img id="credit" src="credit.jpg">
+        <img id="startp" src="start.jpg">
+        <img id="resetp" src="reset.jpg">
+        <img id="joinp" src="join.jpg">
+        <img id="lobbyp" src="lobby.jpg">
+        <img id="scorep" src="score.jpg">
+        <img id="scoreboardp" src="scoreboard.jpg">
+        <img id="joinsmallp" src="joinsmall.jpg">
+        <img id="lobbysmallp" src="lobbysmall.jpg">
+        <img id="p1" src="1.jpg">
+        <img id="p2" src="2.jpg">
+        <img id="p3" src="3.jpg">
+
+        <a-asset-item id="run-obj" src="run.obj"></a-asset-item>
+        <a-asset-item id="run-mtl" src="run.mtl"></a-asset-item>
+    </a-assets>
+
+    <a-entity id="scoreboard" sync scoreboard="on: start1; filter: a-animation; max: 300"></a-entity>
+
+
+    <a-entity id="thegame">
+
+    <a-entity camera position="0 10 0" wasd-controls="fly: true" look-controls></a-entity>
+    <a-light id="light1" type="directional" intensity="3500" position="150 15 15"></a-light>
+
+    <a-entity id="leftstop" position="0 0 3" rotation="0 -90 0"></a-entity>
+    <a-entity id="centerstop" position="0 0 0" rotation="0 -90 0"></a-entity>
+    <a-entity id="rightstop" position="0 0 -3" rotation="0 -90 0"></a-entity>
+
+    <a-entity id="scoreshow" n-text="text:<color=#6FF3E8> 0" position='-0.66 0.35 -1.67' rotation="-25 0 0" scale="0.08 0.08 0.03" n-cockpit-parent></a-entity>
+    <!--a-entity id="scoreshow2" n-text="text: Score:" position='-0.91 0.405 -1.66' rotation="-25 0 0" scale="0.08 0.08 0.03" n-cockpit-parent></a-entity-->
+    <a-box id="scoreshow3" src="#scorep" position='-0.81 0.35 -1.70' rotation="-25 0 0" scale="0.55 0.17 0.03" n-cockpit-parent altspace-cursor-collider="enabled: true"></a-box>
+
+    <a-box id="joinsm" src='#joinsmallp' position='-0.61 0.2 -1.62' rotation="-25 0 0" scale="0.15 0.15 0.03" wire="on: click; emit: outgo; targets: #inpa, #block1c, #click2, #target2" n-cockpit-parent altspace-cursor-collider="enabled: true"></a-box>
+
+    <a-box id="lobbysm" src='#lobbysmallp' position='-0.61 -100 -1.62' rotation="-25 0 0" scale="0.15 0.15 0.03" wire="on: click; emit: outgo; targets: #outpa, #click2" n-cockpit-parent altspace-cursor-collider="enabled: true"></a-box>
+
+    <a-box id="songT" src='#mutep' position='-1.01 0.2 -1.62' rotation="-25 0 0" scale="0.15 0.15 0.03" wire="on: click; emit: movetp; targets: #song" n-cockpit-parent altspace-cursor-collider="enabled: true"></a-box>
+
+    <a-box id="jumpb" src='#jumpp' position='-0.81 0.2 -1.62' rotation="-25 0 0" scale="0.15 0.15 0.03" wire="on: click; emit: jump; targets: #jumpa, #jumpx" n-cockpit-parent altspace-cursor-collider="enabled: true">
+      <a-animation id="jumpx" begin="jump" attribute="position" dur="5000" delay="0" fill="backwards" repeat="0" to="0 -1000 0"></a-animation>
+    </a-box>
+
+    <a-entity id="jumpa" >
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 10 10" position="-0.2 -5 0" material="color: #5ed4ff; opacity: 0" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 10 10" position="-10.1 5 0" material="color: #5ed4ff; opacity: 0" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>    
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 10 10" position="-0.2 5 -9.9" material="color: #5ed4ff; opacity: 0" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="0.5 10 10" position="4.7 5 0" material="color: #5ed4ff; opacity: 0" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 10 10" position="-0.2 5 9.9" material="color: #5ed4ff; opacity: 0" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
+      <a-animation id="jumpa" begin="jump" attribute="position" dur="2000" delay="0" fill="backwards" repeat="0" to="0 8 0"></a-animation>
+    </a-entity>
+
+    <a-box id="leftT" src='#leftp' position='-01.01 0.05 -1.55' rotation="-25 0 0" scale="0.15 0.15 0.03" wire="on: click; emit: movetp; targets: #leftgo" n-cockpit-parent altspace-cursor-collider="enabled: true"></a-box>
+    <a-box id="centerT" src='#centerp' position='-0.81 0.05 -1.55' rotation="-25 0 0" scale="0.15 0.15 0.03" wire="on: click; emit: movetp; targets: #centergo" n-cockpit-parent altspace-cursor-collider="enabled: true"></a-box>
+    <a-box id="rightT" src='#rightp' position='-0.61 0.05 -1.55' rotation="-25 0 0" scale="0.15 0.15 0.03" wire="on: click; emit: movetp; targets: #rightgo" n-cockpit-parent altspace-cursor-collider="enabled: true"></a-box>
+
+    <a-entity id="leftgo" position="0 -50 0" scale="1 1 1" n-portal="targetEntity: #leftstop" n-cockpit-parent>
+      <a-animation id="inpa" begin="movetp" attribute="position" dur="100" delay="0" fill="backwards" repeat="0" to="0 0 0"></a-animation>
+    </a-entity>
+    <a-entity id="centergo" position="0 -50 0" scale="1 1 1" n-portal="targetEntity: #centerstop" n-cockpit-parent>
+      <a-animation id="inpa" begin="movetp" attribute="position" dur="100" delay="0" fill="backwards" repeat="0" to="0 0 0"></a-animation>
+    </a-entity>
+    <a-entity id="rightgo" position="0 -50 0" scale="1 1 1" n-portal="targetEntity: #rightstop" n-cockpit-parent>
+      <a-animation id="inpa" begin="movetp" attribute="position" dur="100" delay="0" fill="backwards" repeat="0" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="countdowne">
+    <a-box id="threeb" src='#p3' position='0 -100 -1.62' rotation="0 0 0" scale="1 1 1" n-cockpit-parent></a-box>
+    <a-box id="twob" src='#p2' position='0 -100 -1.62' rotation="0 0 0" scale="1 1 1" n-cockpit-parent></a-box>
+    <a-box id="oneb" src='#p1' position='0 -100 -1.62' rotation="0 0 0" scale="1 1 1"  n-cockpit-parent></a-box>
+    </a-entity>
+    
+    <a-entity id="room" position="0 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 10 10" position="-10 5 0" material="color: #5ed4ff" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>    
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 10 10" position="0 5 -10" material="color: #5ed4ff" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 10 10" position="10 5 0" material="color: #5ed4ff" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 10 10" position="0 5 10" material="color: #5ed4ff" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 10 10" position="0 -5 0" material="color: #5ed4ff" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
+    <a-animation begin="start1" attribute="position" dur="2000" repeat="0" to="0 -10.2 0"></a-animation>
+    </a-entity>
+
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 10 10" position="-10.2 5 0" material="color: #5ed4ff; opacity: 0" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>    
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 10 10" position="-0.2 5 -10" material="color: #5ed4ff; opacity: 0" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 10 10" position="9.8 5 0" material="color: #5ed4ff; opacity: 0" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 10 10" position="-0.2 5 10" material="color: #5ed4ff; opacity: 0" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
+
+    <a-entity id="move" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="1750 5 21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="1750 5 -21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="1250 5 21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="1250 5 -21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="750 5 21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="750 5 -21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="250 5 21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="250 5 -21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="2750 5 21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="2750 5 -21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="-250 5 21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="-250 5 -21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="-750 5 21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="-750 5 -21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="-1250 5 21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="-1250 5 -21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="-1750 5 21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="-1750 5 -21" material="color: #5ed4ff"></a-entity>
+
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="2000 5 21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="2000 5 -21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="1500 5 21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="1500 5 -21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="1000 5 21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="1000 5 -21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="500 5 21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="500 5 -21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="0 5 21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="0 5 -21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="-500 5 21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="-500 5 -21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="-1000 5 21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="-1000 5 -21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="-1500 5 21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="-1500 5 -21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="-2000 5 21" material="color: #5ed4ff"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 30 30" position="-2000 5 -21" material="color: #5ed4ff"></a-entity>
+    <a-animation attribute="position" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="out" position="10 12 0" rotation="0 -90 0"></a-entity>
+    <a-entity id="in" position="0 0 0" rotation="0 -90 0"></a-entity>
+
+     <a-entity id="startcc2" position="0 -30 0" n-box-collider="isTrigger:true; type:environment; size: 10 10 10" n-container="capacity:1" wire="on: container-full; emit: start2; targets: #room, #floor, #right, #left, #block1, #block1b, #load, #startcc, #startcc2">
+      <a-animation begin="start1" attribute="position" delay="2000" dur="100" repeat="0" to="0 0 0"></a-animation>
+      <a-animation begin="start2" attribute="position" dur="100" repeat="0" to="0 -1000 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block1" position="0 500 0">
+    <a-entity id="block1b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 0" material="color: red" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block1c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 0">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 0"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="2000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="0" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block1" position="0 500 0">
+    <a-entity id="block1b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 3" material="color: red" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block1c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 3">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="4000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="2000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block1" position="0 500 0">
+    <a-entity id="block1b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 -3" material="color: red" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block1c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 -3">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="6000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="4000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+
+    <a-entity id="block1" position="0 500 0">
+    <a-entity id="block1b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 0" material="color: red" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 0">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 0"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="12000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="10000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block1" position="0 500 0">
+    <a-entity id="block1b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 3" material="color: red" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block1c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 3">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="14000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="12000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block1" position="0 500 0">
+    <a-entity id="block1b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 -3" material="color: red" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block1c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 -3">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="16000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="14000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+
+    <a-entity id="block1" position="0 500 0">
+    <a-entity id="block1b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 0" material="color: red" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block1c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 0">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 0"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="7000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="5000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block1" position="0 500 0">
+    <a-entity id="block1b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 3" material="color: red" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block1c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 3">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="9000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="7000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block1" position="0 500 0">
+    <a-entity id="block1b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 -3" material="color: red" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block1c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 -3">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="11000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="9000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+    
+
+    <a-entity id="block1" position="0 500 0">
+    <a-entity id="block1b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 0" material="color: red" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block1c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 0">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 0"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="17000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="15000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block1" position="0 500 0">
+    <a-entity id="block1b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 3" material="color: red" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block1c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 3">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="19000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="17000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block1" position="0 500 0">
+    <a-entity id="block1b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 -3" material="color: red" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block1c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 -3">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="21000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="19000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+    
+    <a-entity id="block1" position="0 500 0">
+    <a-entity id="block1b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 0" material="color: red" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block1c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 0">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 0"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="22000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="20000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block1" position="0 500 0">
+    <a-entity id="block1b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 3" material="color: red" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block1c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 3">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="24000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="22000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block1" position="0 500 0">
+    <a-entity id="block1b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 -3" material="color: red" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block1c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 -3">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="26000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="24000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+
+
+    <a-entity id="block1" position="0 0 0">
+    <a-entity id="block1b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 0" material="color: red" n-mesh-collider="type: environment; convex: false"></a-entity>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="3000" dur="2000" repeat="indefinite" easing="linear" from="0 500 0" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block1" position="0 0 0">
+    <a-entity id="block1b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 3" material="color: red" n-mesh-collider="type: environment; convex: false"></a-entity>
+    </a-entity>
+    <a-animation begin="start1" attribute="position" delay="2000" dur="2000" repeat="indefinite" easing="linear" from="0 500 0" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block1" position="0 0 0">
+    <a-entity id="block1b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 -3" material="color: red" n-mesh-collider="type: environment; convex: false"></a-entity>
+    </a-entity>
+    <a-animation id="log1" begin="start1" attribute="position" delay="4000" dur="2000" repeat="indefinite" easing="linear" from="0 500 0" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <!--                                                                                 ><-->
+     <a-entity id="block2" position="0 500 0">
+    <a-entity id="block2b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 0" material="color: #a041f4" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block2c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 0">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 0"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start2" attribute="position" delay="2000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start2" attribute="position" delay="0" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block3" position="0 500 0">
+    <a-entity id="block3b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 3" material="color: #f47c41" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block3c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 3">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start3" attribute="position" delay="4000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start3" attribute="position" delay="2000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block4" position="0 500 0">
+    <a-entity id="block4b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 -3" material="color: #4158f4" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block4c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 -3">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start4" attribute="position" delay="6000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start4" attribute="position" delay="4000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+
+    <a-entity id="block3" position="0 500 0">
+    <a-entity id="block3b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 0" material="color: #f47c41" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 0">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 0"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start3" attribute="position" delay="12000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start3" attribute="position" delay="10000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block4" position="0 500 0">
+    <a-entity id="block4b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 3" material="color: #4158f4" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block4c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 3">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start4" attribute="position" delay="14000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start4" attribute="position" delay="12000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block2" position="0 500 0">
+    <a-entity id="block2b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 -3" material="color: #a041f4" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block2c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 -3">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start2" attribute="position" delay="16000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start2" attribute="position" delay="14000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+
+    <a-entity id="block4" position="0 500 0">
+    <a-entity id="block4b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 0" material="color: #4158f4" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block4c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 0">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 0"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start4" attribute="position" delay="7000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start4" attribute="position" delay="5000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block2" position="0 500 0">
+    <a-entity id="block2b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 3" material="color: #a041f4" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block2c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 3">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start2" attribute="position" delay="9000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start2" attribute="position" delay="7000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block3" position="0 500 0">
+    <a-entity id="block3b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 -3" material="color: #f47c41" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block3c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 -3">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start3" attribute="position" delay="11000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start3" attribute="position" delay="9000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+    
+
+    <a-entity id="block2" position="0 500 0">
+    <a-entity id="block2b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 0" material="color: #a041f4" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block2c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 0">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 0"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start2" attribute="position" delay="17000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start2" attribute="position" delay="15000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block3" position="0 500 0">
+    <a-entity id="block3b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 3" material="color: #f47c41" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block3c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 3">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start3" attribute="position" delay="19000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start3" attribute="position" delay="17000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block4" position="0 500 0">
+    <a-entity id="block4b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 -3" material="color: #4158f4" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block4c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 -3">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start4" attribute="position" delay="21000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start4" attribute="position" delay="19000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+    
+    <a-entity id="block3" position="0 500 0">
+    <a-entity id="block3b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 0" material="color: #f47c41" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block3c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 0">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 0"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start3" attribute="position" delay="22000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start3" attribute="position" delay="20000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block4" position="0 500 0">
+    <a-entity id="block4b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 3" material="color: #4158f4" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block4c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 3">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start4" attribute="position" delay="24000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start4" attribute="position" delay="22000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block2" position="0 500 0">
+    <a-entity id="block2b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 -3" material="color: #a041f4" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block2c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 -3">
+      <a-animation begin="outgo" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start2" attribute="position" delay="26000" dur="20000" repeat="indefinite" easing="linear" to="1000 0 0"></a-animation>
+    </a-entity>
+    <a-animation begin="start2" attribute="position" delay="24000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
+    </a-entity>
+
+
+
+    <a-entity id="block2" position="0 0 0">
+    <a-entity id="block2b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 0" material="color: #a041f4" n-mesh-collider="type: environment; convex: false"></a-entity>
+    </a-entity>
+    <a-animation begin="start2" attribute="position" delay="3000" dur="2000" repeat="indefinite" easing="linear" from="0 500 0" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block2" position="0 0 0">
+    <a-entity id="block2b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 3" material="color: #a041f4" n-mesh-collider="type: environment; convex: false"></a-entity>
+    </a-entity>
+    <a-animation begin="start2" attribute="position" delay="2000" dur="2000" repeat="indefinite" easing="linear" from="0 500 0" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block2" position="0 0 0">
+    <a-entity id="block2b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 -3" material="color: #a041f4" n-mesh-collider="type: environment; convex: false"></a-entity>
+    </a-entity>
+    <a-animation id="log1" begin="start2" attribute="position" delay="4000" dur="2000" repeat="indefinite" easing="linear" from="0 500 0" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block3" position="0 0 0">
+    <a-entity id="block3b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 0" material="color: #f47c41" n-mesh-collider="type: environment; convex: false"></a-entity>
+    </a-entity>
+    <a-animation begin="start3" attribute="position" delay="3000" dur="2000" repeat="indefinite" easing="linear" from="0 500 0" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block3" position="0 0 0">
+    <a-entity id="block3b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 3" material="color: #f47c41" n-mesh-collider="type: environment; convex: false"></a-entity>
+    </a-entity>
+    <a-animation begin="start3" attribute="position" delay="2000" dur="2000" repeat="indefinite" easing="linear" from="0 500 0" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block3" position="0 0 0">
+    <a-entity id="block3b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 -3" material="color: #f47c41" n-mesh-collider="type: environment; convex: false"></a-entity>
+    </a-entity>
+    <a-animation id="log1" begin="start3" attribute="position" delay="4000" dur="2000" repeat="indefinite" easing="linear" from="0 500 0" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block4" position="0 0 0">
+    <a-entity id="block4b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 0" material="color: #4158f4" n-mesh-collider="type: environment; convex: false"></a-entity>
+    </a-entity>
+    <a-animation begin="start4" attribute="position" delay="3000" dur="2000" repeat="indefinite" easing="linear" from="0 500 0" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block4" position="0 0 0">
+    <a-entity id="block4b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 3" material="color: #4158f4" n-mesh-collider="type: environment; convex: false"></a-entity>
+    </a-entity>
+    <a-animation begin="start4" attribute="position" delay="2000" dur="2000" repeat="indefinite" easing="linear" from="0 500 0" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="block4" position="0 0 0">
+    <a-entity id="block4b" position="-1000 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 -3" material="color: #4158f4" n-mesh-collider="type: environment; convex: false"></a-entity>
+    </a-entity>
+    <a-animation id="log1" begin="start4" attribute="position" delay="4000" dur="2000" repeat="indefinite" easing="linear" from="0 500 0" to="0 0 0"></a-animation>
+    </a-entity>
+
+
+    <!--  -->
+
+
+    <a-entity id="block5" position="0 -500 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="3.25 8 3.25" position="0 2 -3" material="color: #0618a3" rotation="0 0 65" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block5c" n-portal="targetEntity: #out" rotation="0 0 65" scale="0.2 1 3" position="0 0 -3">
+      <a-animation begin="outgo2" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start5" attribute="position" delay="12000" dur="10000" repeat="indefinite" easing="linear" fill="forwards" from="-500 250 -15" to="500 -248 12"></a-animation>
+    </a-entity>
+
+    <a-entity id="block5" position="0 -500 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="3.25 8 3.25" position="0 2 3" material="color: #0618a3" rotation="0 0 65" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block5c" n-portal="targetEntity: #out" rotation="0 0 65" scale="0.2 1 3" position="0 0 3">
+      <a-animation begin="outgo2" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start5" attribute="position" delay="11000" dur="10000" repeat="indefinite" easing="linear" fill="forwards" from="-500 250 15" to="500 -248 -12"></a-animation>
+    </a-entity>
+    
+    <a-entity id="block5" position="0 -500 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="3.25 8 3.25" position="0 2 -3" material="color: #0618a3" rotation="0 0 65" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block5c" n-portal="targetEntity: #out" rotation="0 0 65" scale="0.2 1 3" position="0 0 -3">
+      <a-animation begin="outgo2" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start5" attribute="position" delay="16000" dur="10000" repeat="indefinite" easing="linear" fill="forwards" from="-500 250 -15" to="500 -248 12"></a-animation>
+    </a-entity>
+
+    <a-entity id="block5" position="0 -500 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="3.25 8 3.25" position="0 2 3" material="color: #0618a3" rotation="0 0 65" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block5c" n-portal="targetEntity: #out" rotation="0 0 65" scale="0.2 1 3" position="0 0 3">
+      <a-animation begin="outgo2" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start5" attribute="position" delay="17000" dur="10000" repeat="indefinite" easing="linear" fill="forwards" from="-500 250 15" to="500 -248 -12"></a-animation>
+    </a-entity>
+
+    <a-entity id="block5" position="0 -500 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="3.25 8 3.25" position="0 2 -3" material="color: #0618a3" rotation="0 0 65" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block5c" n-portal="targetEntity: #out" rotation="0 0 65" scale="0.2 1 3" position="0 0 -3">
+      <a-animation begin="outgo2" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start5" attribute="position" delay="23000" dur="10000" repeat="indefinite" easing="linear" fill="forwards" from="-500 250 -15" to="500 -248 12"></a-animation>
+    </a-entity>
+
+    <a-entity id="block5" position="0 -500 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="3.25 8 3.25" position="0 2 3" material="color: #0618a3" rotation="0 0 65" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block5c" n-portal="targetEntity: #out" rotation="0 0 65" scale="0.2 1 3" position="0 0 3">
+      <a-animation begin="outgo2" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start5" attribute="position" delay="22000" dur="10000" repeat="indefinite" easing="linear" fill="forwards" from="-500 250 15" to="500 -248 -12"></a-animation>
+    </a-entity>
+
+    <a-entity id="block5" position="0 -500 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="3.25 8 3.25" position="0 2 -3" material="color: #0618a3" rotation="0 0 65" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block5c" n-portal="targetEntity: #out" rotation="0 0 65" scale="0.2 1 3" position="0 0 -3">
+      <a-animation begin="outgo2" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start5" attribute="position" delay="27000" dur="10000" repeat="indefinite" easing="linear" fill="forwards" from="-500 250 -15" to="500 -248 12"></a-animation>
+    </a-entity>
+
+    <a-entity id="block5" position="0 -500 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="3.25 8 3.25" position="0 2 3" material="color: #0618a3" rotation="0 0 65" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block5c" n-portal="targetEntity: #out" rotation="0 0 65" scale="0.2 1 3" position="0 0 3">
+      <a-animation begin="outgo2" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start5" attribute="position" delay="29000" dur="10000" repeat="indefinite" easing="linear" fill="forwards" from="-500 250 15" to="500 -248 -12"></a-animation>
+    </a-entity>
+   
+   <a-entity id="block5" position="0 -500 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="3.25 8 3.25" position="0 2 -3" material="color: #0618a3" rotation="0 0 65" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block5c" n-portal="targetEntity: #out" rotation="0 0 65" scale="0.2 1 3" position="0 0 -3">
+      <a-animation begin="outgo2" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start5" attribute="position" delay="33000" dur="10000" repeat="indefinite" easing="linear" fill="forwards" from="-500 250 -15" to="500 -248 12"></a-animation>
+    </a-entity>
+
+    <a-entity id="block5" position="0 -500 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="3.25 8 3.25" position="0 2 3" material="color: #0618a3" rotation="0 0 65" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block5c" n-portal="targetEntity: #out" rotation="0 0 65" scale="0.2 1 3" position="0 0 3">
+      <a-animation begin="outgo2" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start5" attribute="position" delay="35000" dur="10000" repeat="indefinite" easing="linear" fill="forwards" from="-500 250 15" to="500 -248 -12"></a-animation>
+    </a-entity>
+   
+   <a-entity id="block5" position="0 -500 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="3.25 8 3.25" position="0 2 -3" material="color: #0618a3" rotation="0 0 65" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block5c" n-portal="targetEntity: #out" rotation="0 0 65" scale="0.2 1 3" position="0 0 -3">
+      <a-animation begin="outgo2" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start5" attribute="position" delay="39000" dur="10000" repeat="indefinite" easing="linear" fill="forwards" from="-500 250 -15" to="500 -248 12"></a-animation>
+    </a-entity>
+
+    <a-entity id="block5" position="0 -500 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="3.25 8 3.25" position="0 2 3" material="color: #0618a3" rotation="0 0 65" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity id="block5c" n-portal="targetEntity: #out" rotation="0 0 65" scale="0.2 1 3" position="0 0 3">
+      <a-animation begin="outgo2" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
+      <a-entity n-sound="src: zap.wav; loop: true; autoplay: true; volume: 0.4; rolloff: cosine; minDistance: 1; maxDistance: 75"></a-entity>
+    </a-entity>
+    <a-animation begin="start5" attribute="position" delay="38000" dur="10000" repeat="indefinite" easing="linear" fill="forwards" from="-500 250 15" to="500 -248 -12"></a-animation>
+    </a-entity>
+   
+
+
+    
+    <a-entity id="startcc" geometry="primitive: plane; buffer: false; width: 6; height: 1.35" material="src: #startp; opacity: 0.75;" scale="0.6 0.6 0.6" rotation="0 90 0" position="-4.9 2 0" material="color: blue; opacity: 0" onclick='
+
+    document.querySelector("#startcc").components.wire.actOnTargets();
+    document.querySelector("#begin3").components["n-sound"].playSound();
+
+    ' wire="on: click; emit: start1; targets: #room, #floor, #right, #left, #block1, #block1b, #load, #startcc, #startcc2, #tunnel, #cube1, #gameover, #scoreboard, #floorwa, #move, #start2goa, #start3goa, #start4goa, #start5goa, #target, #boss, #block5, #click" syncclicks altspace-cursor-collider="enabled: true">
+      <a-animation begin="start1" attribute="position" dur="2500" repeat="0" to="0 -1000 0"></a-animation>      
+    </a-entity>
+
+    <a-entity position="-5 2 0"></a-entity>
+
+    <a-entity geometry="primitive: plane; buffer: false; width: 4; height: 1.35" material="src: #lobbyp; opacity: 0.75;" scale="0.5 0.5 0.5" position="4.2 2 0" rotation="0 -90 0" material="color: blue; opacity: 0" wire="on: click; emit: outgo; targets: #outpa, #click2" altspace-cursor-collider="enabled: true">      
+    </a-entity>
+
+    <a-entity id="joinh" geometry="primitive: plane; buffer: false; width: 6; height: 1.35" material="src: #joinp; opacity: 0.75;" scale="0.5 0.5 0.5" position="5.1 12 0" rotation="0 90 0" material="color: blue; opacity: 0" wire="on: click; emit: outgo; targets: #inpa, #block1c, #click2, #target2" altspace-cursor-collider="enabled: true">      
+    </a-entity>
+    
+
+    <a-entity id="cube1" position="10 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="0.1 10 10" position="-15 15 0" material="color: blue; opacity: 1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>    
+    <a-entity geometry="primitive: box; buffer: false;" scale="30 10 0.1" position="0 15 -5" material="color: blue; opacity: 1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="0.1 10 10" position="5 15 0" material="color: blue; opacity: 1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="30 10 0.1" position="0 15 5" material="color: blue; opacity: 1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="9.9 0.1 10" position="0 10 0" material="color: blue; opacity: 1;" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 0.1 10" position="0 -20 0" material="color: blue; opacity: 1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
+    <a-entity geometry="primitive: plane; buffer: false; width: 6; height: 4.5" material="src: #arkwall; opacity: 1;" position="0 13 -4.9" rotation="0 0 0"></a-entity>
+    <a-entity geometry="primitive: plane; buffer: false; width: 1.25; height: 2" material="src: #credit; opacity: 1;" position="0 12 4.9" rotation="0 180 0"></a-entity>
+    <a-entity geometry="primitive: plane; buffer: false; width: 8; height: 8" material="src: #scoreboardp; opacity: 1;" position="-14.9 15.5 0" rotation="0 90 0"></a-entity>
+    <!--a-entity id="last5" n-text="text: Last 5 Scores:" position="-14.6 18 0" rotation="0 90 0"></a-entity-->
+    <a-entity id="lastscore" n-text="text:<color=#6FF3E8> 0" position="-14.8 16.75 0" rotation="0 90 0"></a-entity>
+    <a-entity id="lastscore2" n-text="text:<color=#6FF3E8> 0" position="-14.8 15.75 0" rotation="0 90 0"></a-entity>
+    <a-entity id="lastscore3" n-text="text:<color=#6FF3E8> 0" position="-14.8 14.75 0" rotation="0 90 0"></a-entity>
+    <a-entity id="lastscore4" n-text="text:<color=#6FF3E8> 0" position="-14.8 13.75 0" rotation="0 90 0"></a-entity>
+    <a-entity id="lastscore5" n-text="text:<color=#6FF3E8> 0" position="-14.8 12.75 0" rotation="0 90 0"></a-entity>
+    
+
+    <a-animation begin="start1" attribute="position" dur="1000" repeat="0" easing="ease" to="0 -1000 0"></a-animation>
+    </a-entity>
+
+    <a-entity position="0 15 0" id="hah1" n-sound="src: ha1.wav; loop: false; autoplay: false; volume: 0.3; rolloff: cosine; minDistance: 1; maxDistance: 1000"></a-entity>
+    <a-entity position="0 15 0" id="hah2" n-sound="src: ha2.wav; loop: false; autoplay: false; volume: 0.3; rolloff: cosine; minDistance: 1; maxDistance: 1000"></a-entity>
+    <a-entity position="0 15 0" id="hah3" n-sound="src: ha3.wav; loop: false; autoplay: false; volume: 0.3; rolloff: cosine; minDistance: 1; maxDistance: 1000"></a-entity>
+    
+
+    <a-entity id="tunnel" position="-2500 15 0">
+    <a-entity id="tfloorw" geometry="primitive: box; buffer: false;" scale="500 10 10" position="0 10 0" material="color: #1f4959" n-mesh-collider="type: environment; convex: false"></a-entity>    
+    <a-entity id="tleftw" geometry="primitive: box; buffer: false;" scale="500 30 10" position="0 0 -10" material="color: #1f4959" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity ID="trightw" geometry="primitive: box; buffer: false;" scale="500 30 10" position="0 0 10" material="color: #1f4959" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-animation begin="start1" attribute="position" dur="100000" repeat="indefinite" easing="linear" to="2500 15 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="outp" position="0 -100 0" scale="1 1 1" n-portal="targetEntity: #out" n-cockpit-parent>
+      <a-animation id="outpa" begin="outgo" attribute="position" dur="250" fill="backwards" repeat="0" to="0 0 0"></a-animation>
+    </a-entity>
+    <a-entity id="inp" position="0 -100 0" scale="1 1 1" n-portal="targetEntity: #in" n-cockpit-parent>
+      <a-animation id="inpa" begin="outgo" attribute="position" dur="250" delay="3000" fill="backwards" repeat="0" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="floor" geometry="primitive: plane; buffer: false;" scale="1500 10 1" position="0 -100 0" rotation="-90 0 0" material="color: #5ed4ff; opacity: 1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light>
+      <a-animation begin="start1" attribute="position" dur="2500" repeat="0" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="left" geometry="primitive: plane; buffer: false;" scale="1500 50 1" position="0 22 -113" rotation="-20 0 0" material="color: #5ed4ff; opacity: 1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light>
+      <a-animation begin="start1" attribute="position" dur="2500" repeat="0" to="0 22 -13"></a-animation>
+    </a-entity>
+    <a-entity id="right" geometry="primitive: plane; buffer: false;" scale="1500 50 1" position="0 22 113" rotation="-160 0 0" material="color: #5ed4ff; opacity: 1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light>
+      <a-animation begin="start1" attribute="position" dur="2500" repeat="0" to="0 22 13"></a-animation>
+    </a-entity>
+    
+    <a-entity id="start2go" position="0 -1000 -2010">
+    <a-entity id="start2gocon" position="0 0 0" n-box-collider="isTrigger:true; type:environment; size: 50 50 50" n-container="capacity: 1" wire="on: container-full; emit: start2; targets: #block2, #block2b, #target"></a-entity>
+    <a-animation id="start2goa" begin="start1" delay="50000" attribute="position" dur="5000" fill="backwards" repeat="0" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="start3go" position="200 -1000 -2010">
+    <a-entity id="start3gocon" position="0 0 0" n-box-collider="isTrigger:true; type:environment; size: 50 50 50" n-container="capacity: 1" wire="on: container-full; emit: start3; targets: #block3, #block3b, #target"></a-entity>
+    <a-animation id="start3goa" begin="start1" delay="100000" attribute="position" dur="5000" fill="backwards" repeat="0" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="start4go" position="400 -1000 -2010">
+    <a-entity id="start4gocon" position="0 0 0" n-box-collider="isTrigger:true; type:environment; size: 50 50 50" n-container="capacity: 1" wire="on: container-full; emit: start4; targets: #block4, #block4b, #target"></a-entity>
+    <a-animation id="start4goa" begin="start1" delay="150000" attribute="position" dur="5000" fill="backwards" repeat="0" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="start5go" position="600 -1000 -2010">
+    <a-entity id="start5gocon" position="0 0 0" n-box-collider="isTrigger:true; type:environment; size: 50 50 50" n-container="capacity: 1" wire="on: container-full; emit: start5; targets: #block5, #block5b, #target, #bossm, #hah1, #hah3, #hah3"></a-entity>
+    <a-animation id="start5goa" begin="start1" delay="200000" attribute="position" dur="5000" fill="backwards" repeat="0" to="0 0 0"></a-animation>
+    </a-entity>
+
+
+    <a-entity position="0 0 0">
+    <a-entity id="song" position="0 10 0" n-sound="src: arktheme.wav; loop: true; autoplay: false; volume: 0.2; rolloff: cosine; minDistance: 1; maxDistance: 300"></a-entity>
+    <a-entity id="song2" position="0 10 0" n-sound="src: arkpregame.wav; loop: true; autoplay: true; volume: 0.2; rolloff: cosine; minDistance: 1; maxDistance: 300"></a-entity>
+    <a-entity id="song3" position="0 10 0" n-sound="src: arktheme2.wav; loop: true; autoplay: false; volume: 0.2; rolloff: cosine; minDistance: 1; maxDistance: 300"></a-entity>
+    <a-entity id="song4" position="0 10 0" n-sound="src: arktheme3.wav; loop: true; autoplay: false; volume: 0.2; rolloff: cosine; minDistance: 1; maxDistance: 300"></a-entity>
+    <a-entity id="song5" position="0 10 0" n-sound="src: arktheme4.wav; loop: true; autoplay: false; volume: 0.2; rolloff: cosine; minDistance: 1; maxDistance: 300"></a-entity>
+    <a-entity id="song6" position="0 10 0" n-sound="src: level5.wav; loop: true; autoplay: false; volume: 0.3; rolloff: cosine; minDistance: 1; maxDistance: 300"></a-entity>
+    <a-animation id="songgo" begin="movetp" attribute="position" dur="100" delay="0" fill="forwards" direction="alternate" repeat="0" from="0 0 0" to="0 -1000 0"></a-animation>
+    </a-entity>
+
+    <a-obj-model id="boss" scale="50 50 50" src="#run-obj" mtl="#run-mtl" position="-250 -1000 0" rotation="0 90 0" n-mesh-collider="type: environment; convex: false">
+      <a-animation id="bossm" begin="start5" attribute="position" dur="7500" delay="0" fill="forwards" direction="alternate" repeat="0" from="0 -1000 0" to="-250 0 0"></a-animation>
+    </a-obj-model>
+
+
+
+    </a-entity>
+
+    <a-entity id="resetb" geometry="primitive: plane; buffer: false; width: 6; height: 1.35" material="src: #resetp; opacity: 0.75;" position="13 -1000 0" scale="0.5 0.5 0.5" material="color: blue; opacity: 0" rotation="0 -90 0" onclick="reset()" syncclicks altspace-cursor-collider="enabled: true">
+      <a-animation id="endmove" begin="gameend" attribute="position" dur="5000" delay="0" fill="backwards" repeat="0" to="0 -1000 0"></a-animation>
+    </a-entity>
+
+    <a-entity id="gameovert"></a-entity>
+    
+    <a-entity position="10 0 0">
+    <a-entity geometry="primitive: box; buffer: false;" scale="0.1 10 10" position="-5 15 0" material="color: blue; opacity: 0.1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>    
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 10 0.1" position="0 15 -5" material="color: blue; opacity: 0.1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="0.1 10 10" position="5 15 0" material="color: blue; opacity: 0.1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 10 0.1" position="0 15 5" material="color: blue; opacity: 0.1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 0.1 10" position="0 10 0" material="color: blue; opacity: 0.1;" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 0.1 10" position="0 20 0" material="color: blue; opacity: 0.1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
+    </a-entity>
+
+    <a-entity id="lazercon" position="-250 125 0" n-box-collider="isTrigger:true; type:environment; size: 1 80 80" n-container="capacity:1" wire="on: container-full; emit: lazergo; targets: #lazer"></a-entity>
+    
+    <a-entity id="gameover" position="-0.2 5 0" n-box-collider="isTrigger:true; type:environment; size: 10 10 10" n-container="capacity:1"></a-entity>
+
+    <a-entity id="counter" position="-6.2 5 0" n-box-collider="isTrigger:true; type:environment; size: 1 30 10" n-container="capacity:1"></a-entity>
+
+    <a-entity id="startbb" position="-5 2 0" n-box-collider="isTrigger:true; type:environment; size: 0.5 2 0.5" n-container="capacity:1"></a-entity>
+
+    <a-entity id="load" position="0 10 0" begin="start1" n-sound="src: load.wav; loop: false; autoplay: false; volume: 0.7; rolloff: cosine; minDistance: 1; maxDistance: 300"></a-entity>
+
+    <a-entity position="0 15 0" id="gameovers" n-sound="src: gameover.wav; loop: false; autoplay: false; volume: 1; rolloff: cosine; minDistance: 1; maxDistance: 300"></a-entity>
+
+    <a-entity position="0 15 0" id="begin3" n-sound="src: begin.wav; loop: false; autoplay: false; volume: 0.3; rolloff: cosine; minDistance: 1; maxDistance: 300"></a-entity>
+
+    <a-entity position="0 15 0" id="lazer" n-sound="src: lazer.wav; on: lazergo; loop: false; autoplay: false; volume: 0.3; rolloff: cosine; minDistance: 1; maxDistance: 1000"></a-entity>
+
+    <a-entity position="0 15 0" id="click" n-sound="src: click.wav; on: click; loop: false; autoplay: false; volume: 0.3; rolloff: cosine; minDistance: 1; maxDistance: 1000"></a-entity>
+
+    <a-entity position="0 15 0" id="click2" n-sound="src: click.wav; on: outgo; loop: false; autoplay: false; volume: 0.3; rolloff: cosine; minDistance: 1; maxDistance: 1000"></a-entity>
+
+    <a-entity id="target"></a-entity>
+
+    <a-entity id="target2"></a-entity>
+
+    <a-entity id="oob" wire="on: click; emit: outgo; targets: #outpa"></a-entity>
+
+    <a-entity id="resetport" wire="on: click; emit: startport; targets: #outstartff"></a-entity>
+
+    <a-entity id="outstart" position="0 -100 0" scale="1 1 1" n-portal="targetEntity: #out" n-cockpit-parent>
+      <a-animation id="outstartff" begin="startport" attribute="position" dur="750" fill="backwards" repeat="0" to="0 0 0"></a-animation>
+    </a-entity>
+
+    <a-sky radius="1050" rotation="-25" color="black" segments-width="16" segments-height="16"></a-sky>
+
+    </a-scene>
+
+
+    <script>
+ 
+  document.querySelector('#resetport').click();
+
+  var gameStarted = true;
+  var score = 0;
+  var scoring = false;
+  var lastscore = 0;
+  var lastscore2 = 0;
+  var lastscore3 = 0;
+  var lastscore4 = 0;
+  var lastscore5 = 0;
+  var heady = 0;
+  var boss = false;
+
+  
+  document.querySelector('#gameover').addEventListener('container-count-changed', function(e){
+  console.log('gameover: ' + e.detail.count);
+  if (e.detail.count == 0 && e.detail.oldCount == 1 && gameStarted ) {
+    document.querySelector('#resetb').click();
+  }
+  });
+
+  document.querySelector('#counter').addEventListener('container-count-changed', function(e){
+  if (e.detail.count != e.detail.oldCount) {
+    score += 10;
+    document.querySelector('#scoreshow').setAttribute('n-text', { text:'<color=#6FF3E8>' + score });
+  }
+  });
+
+  altspace.getUser().then(function(user){
+  if (user.isModerator){
+    document.querySelector('#resetb').setAttribute('position', '14.7 12 0');
+  }
+  });
+
+  document.querySelector('#gameovert').addEventListener('gameend', function () {
+        reset();
+        console.log("gameover")
+    });
+
+  document.querySelector('#target2').addEventListener('outgo', function () {
+        document.querySelector('#threeb').setAttribute('position', '0 1 -1.62');
+        setTimeout(function() {document.querySelector('#threeb').setAttribute('position', '0 -100 0');}, 1000);
+        setTimeout(function() {document.querySelector('#twob').setAttribute('position', '0 1 -1.62');}, 1000);
+        setTimeout(function() {document.querySelector('#twob').setAttribute('position', '0 -100 0');}, 2000);
+        setTimeout(function() {document.querySelector('#oneb').setAttribute('position', '0 1 -1.62');}, 2000);
+        setTimeout(function() {document.querySelector('#oneb').setAttribute('position', '0 -100 0');}, 3000);
+    });
+
+  document.querySelector('#target').addEventListener('start1', function () {
+        scoring = true;
+        document.querySelector('#song2').components['n-sound'].pauseSound();
+        document.querySelector('#song3').components['n-sound'].pauseSound();
+        document.querySelector('#song4').components['n-sound'].pauseSound();
+        document.querySelector('#song5').components['n-sound'].pauseSound();
+        document.querySelector('#song6').components['n-sound'].pauseSound();
+        document.querySelector('#song').components['n-sound'].playSound();
+        document.querySelector('#joinh').setAttribute('position', '5.1 13.5 0');
+    });
+   document.querySelector('#target').addEventListener('start2', function () {
+        document.querySelector('#hah1').components['n-sound'].playSound();
+        document.querySelector('#song').components['n-sound'].pauseSound();
+        document.querySelector('#song2').components['n-sound'].pauseSound();
+        document.querySelector('#song4').components['n-sound'].pauseSound();
+        document.querySelector('#song5').components['n-sound'].pauseSound();
+        document.querySelector('#song6').components['n-sound'].pauseSound();
+        document.querySelector('#song3').components['n-sound'].playSound();
+    });
+    document.querySelector('#target').addEventListener('start3', function () {
+        document.querySelector('#hah2').components['n-sound'].playSound();
+        document.querySelector('#song').components['n-sound'].pauseSound();
+        document.querySelector('#song2').components['n-sound'].pauseSound();
+        document.querySelector('#song3').components['n-sound'].pauseSound();
+        document.querySelector('#song5').components['n-sound'].pauseSound();
+        document.querySelector('#song6').components['n-sound'].pauseSound();
+        document.querySelector('#song4').components['n-sound'].playSound();
+    });
+     document.querySelector('#target').addEventListener('start4', function () {
+        document.querySelector('#hah3').components['n-sound'].playSound();
+        document.querySelector('#song').components['n-sound'].pauseSound();
+        document.querySelector('#song2').components['n-sound'].pauseSound();
+        document.querySelector('#song3').components['n-sound'].pauseSound();
+        document.querySelector('#song4').components['n-sound'].pauseSound();
+        document.querySelector('#song6').components['n-sound'].pauseSound();
+        document.querySelector('#song5').components['n-sound'].playSound();
+    });
+      document.querySelector('#target').addEventListener('start5', function () {
+        document.querySelector('#hah1').components['n-sound'].playSound();
+        document.querySelector('#song').components['n-sound'].pauseSound();
+        document.querySelector('#song2').components['n-sound'].pauseSound();
+        document.querySelector('#song3').components['n-sound'].pauseSound();
+        document.querySelector('#song4').components['n-sound'].pauseSound();
+        document.querySelector('#song5').components['n-sound'].pauseSound();
+        document.querySelector('#song6').components['n-sound'].playSound();
+        boss = true;
+        setTimeout(function() {document.querySelector('#hah1').components['n-sound'].playSound();}, 4500);
+        setTimeout(function() {document.querySelector('#hah2').components['n-sound'].playSound();}, 4500);
+        setTimeout(function() {document.querySelector('#hah3').components['n-sound'].playSound();}, 4500);
+    });
+
+      altspace.getThreeJSTrackingSkeleton().then(function(skeleton){
+      var head = skeleton.getJoint('Head');
+      var headg = 0;
+
+      function check() {
+        headg = head.position.z;
+        headb = head.position.x;
+        heady = head.position.y;
+        console.log(head.position.z)
+        console.log(head.position.x)
+  
+        if (headg >= 5) {
+          document.querySelector('#oob').click();
+        }
+        if (headg <= -5) {
+          document.querySelector('#oob').click();
+        }
+        if (headb >= 15) {
+          document.querySelector('#oob').click();
+        }
+        if (headb <= -5) {
+          document.querySelector('#oob').click();
+        }
+        if (heady >= 11) {
+          document.querySelector('#lobbysm').setAttribute('position', '-0.61 -100.2 -1.62');
+          document.querySelector('#joinsm').setAttribute('position', '-0.61 0.2 -1.62');
+        }
+        if (heady <= 10.9) {
+          document.querySelector('#lobbysm').setAttribute('position', '-0.61 0.2 -1.62');
+          document.querySelector('#joinsm').setAttribute('position', '-0.61 -100.2 -1.62');
+        }
+      } 
+      setInterval(check, 500);    
+    });
+    
+
+    function bossl() {
+      if (boss) {
+          document.querySelector('#hah1').components['n-sound'].playSound();
+        }
+    }
+    setInterval(bossl, 25000);
+
+ function reset() {
+  if (gameStarted) {
+    console.log('reset');
+    if ( score >= 50 ) {    
+    lastscore5 = lastscore4;
+    lastscore4 = lastscore3;
+    lastscore3 = lastscore2;
+    lastscore2 = lastscore;
+    lastscore = score;
+    };
+    document.querySelector('#thegame').innerHTML = document.querySelector('#thegame').innerHTML.toString();
+    if (heady <= 10) {
+          document.querySelector('#resetport').click();
+    };
+    if ( score >= 15 ) { 
+    document.querySelector('#gameovers').components['n-sound'].playSound();
+    };
+    gameStarted = false;
+    scoring = false;
+    boss= false;
+    document.querySelector('#lastscore').setAttribute('n-text', { text:'<color=#6FF3E8>' + lastscore });
+    document.querySelector('#lastscore2').setAttribute('n-text', { text:'<color=#6FF3E8>' + lastscore2 });
+    document.querySelector('#lastscore3').setAttribute('n-text', { text:'<color=#6FF3E8>' + lastscore3 });
+    document.querySelector('#lastscore4').setAttribute('n-text', { text:'<color=#6FF3E8>' + lastscore4 });
+    document.querySelector('#lastscore5').setAttribute('n-text', { text:'<color=#6FF3E8>' + lastscore5 });
+    document.querySelector('#joinh').setAttribute('position', '5.1 12 0');
+    score = 0;
+    setTimeout(function() {gameStarted = true;}, 5000);
+  }
+}
+</script>
+
+  </body>
+</html>
