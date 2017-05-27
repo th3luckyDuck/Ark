@@ -94,6 +94,8 @@
     <a-entity id="centerstop" position="0 0 0" rotation="0 -90 0"></a-entity>
     <a-entity id="rightstop" position="0 0 -3" rotation="0 -90 0"></a-entity>
 
+    <a-entity id="menu1" position="0.805 -0.18 0">
+
     <a-entity id="scoreshow" n-text="text:<color=#6FF3E8> 0" position='-0.66 0.35 -1.67' rotation="-25 0 0" scale="0.08 0.08 0.03" n-cockpit-parent></a-entity>
     <!--a-entity id="scoreshow2" n-text="text: Score:" position='-0.91 0.405 -1.66' rotation="-25 0 0" scale="0.08 0.08 0.03" n-cockpit-parent></a-entity-->
     <a-box id="scoreshow3" src="#scorep" position='-0.81 0.35 -1.70' rotation="-25 0 0" scale="0.55 0.17 0.03" n-cockpit-parent altspace-cursor-collider="enabled: true"></a-box>
@@ -108,6 +110,12 @@
       <a-animation id="jumpx" begin="jump" attribute="position" dur="5000" delay="0" fill="backwards" repeat="0" to="0 -1000 0"></a-animation>
     </a-box>
 
+    <a-box id="leftT" src='#leftp' position='-01.01 0.05 -1.55' rotation="-25 0 0" scale="0.15 0.15 0.03" wire="on: click; emit: movetp; targets: #leftgo" n-cockpit-parent altspace-cursor-collider="enabled: true"></a-box>
+    <a-box id="centerT" src='#centerp' position='-0.81 0.05 -1.55' rotation="-25 0 0" scale="0.15 0.15 0.03" wire="on: click; emit: movetp; targets: #centergo" n-cockpit-parent altspace-cursor-collider="enabled: true"></a-box>
+    <a-box id="rightT" src='#rightp' position='-0.61 0.05 -1.55' rotation="-25 0 0" scale="0.15 0.15 0.03" wire="on: click; emit: movetp; targets: #rightgo" n-cockpit-parent altspace-cursor-collider="enabled: true"></a-box>
+
+    </a-entity>
+
     <a-entity id="jumpa" >
     <a-entity geometry="primitive: box; buffer: false;" scale="10 10 10" position="-0.2 -5 0" material="color: #5ed4ff; opacity: 0" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
     <a-entity geometry="primitive: box; buffer: false;" scale="10 10 10" position="-10.1 5 0" material="color: #5ed4ff; opacity: 0" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>    
@@ -117,18 +125,15 @@
       <a-animation id="jumpa" begin="jump" attribute="position" dur="2000" delay="0" fill="backwards" repeat="0" to="0 8 0"></a-animation>
     </a-entity>
 
-    <a-box id="leftT" src='#leftp' position='-01.01 0.05 -1.55' rotation="-25 0 0" scale="0.15 0.15 0.03" wire="on: click; emit: movetp; targets: #leftgo" n-cockpit-parent altspace-cursor-collider="enabled: true"></a-box>
-    <a-box id="centerT" src='#centerp' position='-0.81 0.05 -1.55' rotation="-25 0 0" scale="0.15 0.15 0.03" wire="on: click; emit: movetp; targets: #centergo" n-cockpit-parent altspace-cursor-collider="enabled: true"></a-box>
-    <a-box id="rightT" src='#rightp' position='-0.61 0.05 -1.55' rotation="-25 0 0" scale="0.15 0.15 0.03" wire="on: click; emit: movetp; targets: #rightgo" n-cockpit-parent altspace-cursor-collider="enabled: true"></a-box>
-
+    
     <a-entity id="leftgo" position="0 -50 0" scale="1 1 1" n-portal="targetEntity: #leftstop" n-cockpit-parent>
-      <a-animation id="inpa" begin="movetp" attribute="position" dur="100" delay="0" fill="backwards" repeat="0" to="0 0 0"></a-animation>
+      <a-animation id="inpa" begin="movetp" attribute="position" dur="250" delay="0" fill="backwards" repeat="0" to="0 0 0"></a-animation>
     </a-entity>
     <a-entity id="centergo" position="0 -50 0" scale="1 1 1" n-portal="targetEntity: #centerstop" n-cockpit-parent>
-      <a-animation id="inpa" begin="movetp" attribute="position" dur="100" delay="0" fill="backwards" repeat="0" to="0 0 0"></a-animation>
+      <a-animation id="inpa" begin="movetp" attribute="position" dur="250" delay="0" fill="backwards" repeat="0" to="0 0 0"></a-animation>
     </a-entity>
     <a-entity id="rightgo" position="0 -50 0" scale="1 1 1" n-portal="targetEntity: #rightstop" n-cockpit-parent>
-      <a-animation id="inpa" begin="movetp" attribute="position" dur="100" delay="0" fill="backwards" repeat="0" to="0 0 0"></a-animation>
+      <a-animation id="inpa" begin="movetp" attribute="position" dur="250" delay="0" fill="backwards" repeat="0" to="0 0 0"></a-animation>
     </a-entity>
 
     <a-entity id="countdowne">
@@ -237,7 +242,7 @@
     </a-entity>
 
 
-    <a-entity id="block1" position="0 500 0">
+    <a-entity id="block1x" position="0 500 0">
     <a-entity id="block1b" position="-1000 0 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 0" material="color: red" n-mesh-collider="type: environment; convex: false"></a-entity>
     <a-entity n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 0">
@@ -249,7 +254,7 @@
     <a-animation begin="start1" attribute="position" delay="10000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
     </a-entity>
 
-    <a-entity id="block1" position="0 500 0">
+    <a-entity id="block1x" position="0 500 0">
     <a-entity id="block1b" position="-1000 0 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 3" material="color: red" n-mesh-collider="type: environment; convex: false"></a-entity>
     <a-entity id="block1c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 3">
@@ -261,7 +266,7 @@
     <a-animation begin="start1" attribute="position" delay="12000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
     </a-entity>
 
-    <a-entity id="block1" position="0 500 0">
+    <a-entity id="block1x" position="0 500 0">
     <a-entity id="block1b" position="-1000 0 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 -3" material="color: red" n-mesh-collider="type: environment; convex: false"></a-entity>
     <a-entity id="block1c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 -3">
@@ -311,7 +316,7 @@
     </a-entity>
     
 
-    <a-entity id="block1" position="0 500 0">
+    <a-entity id="block1x" position="0 500 0">
     <a-entity id="block1b" position="-1000 0 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 0" material="color: red" n-mesh-collider="type: environment; convex: false"></a-entity>
     <a-entity id="block1c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 0">
@@ -323,7 +328,7 @@
     <a-animation begin="start1" attribute="position" delay="15000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
     </a-entity>
 
-    <a-entity id="block1" position="0 500 0">
+    <a-entity id="block1x" position="0 500 0">
     <a-entity id="block1b" position="-1000 0 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 3" material="color: red" n-mesh-collider="type: environment; convex: false"></a-entity>
     <a-entity id="block1c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 3">
@@ -335,7 +340,7 @@
     <a-animation begin="start1" attribute="position" delay="17000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
     </a-entity>
 
-    <a-entity id="block1" position="0 500 0">
+    <a-entity id="block1x" position="0 500 0">
     <a-entity id="block1b" position="-1000 0 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 -3" material="color: red" n-mesh-collider="type: environment; convex: false"></a-entity>
     <a-entity id="block1c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 -3">
@@ -386,21 +391,21 @@
 
 
 
-    <a-entity id="block1" position="0 0 0">
+    <a-entity id="block1x" position="0 0 0">
     <a-entity id="block1b" position="-1000 0 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 0" material="color: red" n-mesh-collider="type: environment; convex: false"></a-entity>
     </a-entity>
     <a-animation begin="start1" attribute="position" delay="3000" dur="2000" repeat="indefinite" easing="linear" from="0 500 0" to="0 0 0"></a-animation>
     </a-entity>
 
-    <a-entity id="block1" position="0 0 0">
+    <a-entity id="block1x" position="0 0 0">
     <a-entity id="block1b" position="-1000 0 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 3" material="color: red" n-mesh-collider="type: environment; convex: false"></a-entity>
     </a-entity>
     <a-animation begin="start1" attribute="position" delay="2000" dur="2000" repeat="indefinite" easing="linear" from="0 500 0" to="0 0 0"></a-animation>
     </a-entity>
 
-    <a-entity id="block1" position="0 0 0">
+    <a-entity id="block1x" position="0 0 0">
     <a-entity id="block1b" position="-1000 0 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 -3" material="color: red" n-mesh-collider="type: environment; convex: false"></a-entity>
     </a-entity>
@@ -445,7 +450,7 @@
     </a-entity>
 
 
-    <a-entity id="block3" position="0 500 0">
+    <a-entity id="block3x" position="0 500 0">
     <a-entity id="block3b" position="-1000 0 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 0" material="color: #f47c41" n-mesh-collider="type: environment; convex: false"></a-entity>
     <a-entity n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 0">
@@ -457,7 +462,7 @@
     <a-animation begin="start3" attribute="position" delay="10000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
     </a-entity>
 
-    <a-entity id="block4" position="0 500 0">
+    <a-entity id="block4x" position="0 500 0">
     <a-entity id="block4b" position="-1000 0 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 3" material="color: #4158f4" n-mesh-collider="type: environment; convex: false"></a-entity>
     <a-entity id="block4c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 3">
@@ -469,7 +474,7 @@
     <a-animation begin="start4" attribute="position" delay="12000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
     </a-entity>
 
-    <a-entity id="block2" position="0 500 0">
+    <a-entity id="block2x" position="0 500 0">
     <a-entity id="block2b" position="-1000 0 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 -3" material="color: #a041f4" n-mesh-collider="type: environment; convex: false"></a-entity>
     <a-entity id="block2c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 -3">
@@ -519,7 +524,7 @@
     </a-entity>
     
 
-    <a-entity id="block2" position="0 500 0">
+    <a-entity id="block2x" position="0 500 0">
     <a-entity id="block2b" position="-1000 0 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 0" material="color: #a041f4" n-mesh-collider="type: environment; convex: false"></a-entity>
     <a-entity id="block2c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 0">
@@ -531,7 +536,7 @@
     <a-animation begin="start2" attribute="position" delay="15000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
     </a-entity>
 
-    <a-entity id="block3" position="0 500 0">
+    <a-entity id="block3x" position="0 500 0">
     <a-entity id="block3b" position="-1000 0 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 3" material="color: #f47c41" n-mesh-collider="type: environment; convex: false"></a-entity>
     <a-entity id="block3c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 3">
@@ -543,7 +548,7 @@
     <a-animation begin="start3" attribute="position" delay="17000" dur="2000" repeat="0" easing="linear" to="0 0 0"></a-animation>
     </a-entity>
 
-    <a-entity id="block4" position="0 500 0">
+    <a-entity id="block4x" position="0 500 0">
     <a-entity id="block4b" position="-1000 0 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 -3" material="color: #4158f4" n-mesh-collider="type: environment; convex: false"></a-entity>
     <a-entity id="block4c" n-portal="targetEntity: #out" scale="0.2 1 3" position="0 0 -3">
@@ -594,63 +599,63 @@
 
 
 
-    <a-entity id="block2" position="0 0 0">
+    <a-entity id="block2x" position="0 0 0">
     <a-entity id="block2b" position="-1000 0 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 0" material="color: #a041f4" n-mesh-collider="type: environment; convex: false"></a-entity>
     </a-entity>
     <a-animation begin="start2" attribute="position" delay="3000" dur="2000" repeat="indefinite" easing="linear" from="0 500 0" to="0 0 0"></a-animation>
     </a-entity>
 
-    <a-entity id="block2" position="0 0 0">
+    <a-entity id="block2x" position="0 0 0">
     <a-entity id="block2b" position="-1000 0 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 3" material="color: #a041f4" n-mesh-collider="type: environment; convex: false"></a-entity>
     </a-entity>
     <a-animation begin="start2" attribute="position" delay="2000" dur="2000" repeat="indefinite" easing="linear" from="0 500 0" to="0 0 0"></a-animation>
     </a-entity>
 
-    <a-entity id="block2" position="0 0 0">
+    <a-entity id="block2x" position="0 0 0">
     <a-entity id="block2b" position="-1000 0 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 -3" material="color: #a041f4" n-mesh-collider="type: environment; convex: false"></a-entity>
     </a-entity>
     <a-animation id="log1" begin="start2" attribute="position" delay="4000" dur="2000" repeat="indefinite" easing="linear" from="0 500 0" to="0 0 0"></a-animation>
     </a-entity>
 
-    <a-entity id="block3" position="0 0 0">
+    <a-entity id="block3x" position="0 0 0">
     <a-entity id="block3b" position="-1000 0 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 0" material="color: #f47c41" n-mesh-collider="type: environment; convex: false"></a-entity>
     </a-entity>
     <a-animation begin="start3" attribute="position" delay="3000" dur="2000" repeat="indefinite" easing="linear" from="0 500 0" to="0 0 0"></a-animation>
     </a-entity>
 
-    <a-entity id="block3" position="0 0 0">
+    <a-entity id="block3x" position="0 0 0">
     <a-entity id="block3b" position="-1000 0 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 3" material="color: #f47c41" n-mesh-collider="type: environment; convex: false"></a-entity>
     </a-entity>
     <a-animation begin="start3" attribute="position" delay="2000" dur="2000" repeat="indefinite" easing="linear" from="0 500 0" to="0 0 0"></a-animation>
     </a-entity>
 
-    <a-entity id="block3" position="0 0 0">
+    <a-entity id="block3x" position="0 0 0">
     <a-entity id="block3b" position="-1000 0 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 -3" material="color: #f47c41" n-mesh-collider="type: environment; convex: false"></a-entity>
     </a-entity>
     <a-animation id="log1" begin="start3" attribute="position" delay="4000" dur="2000" repeat="indefinite" easing="linear" from="0 500 0" to="0 0 0"></a-animation>
     </a-entity>
 
-    <a-entity id="block4" position="0 0 0">
+    <a-entity id="block4x" position="0 0 0">
     <a-entity id="block4b" position="-1000 0 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 0" material="color: #4158f4" n-mesh-collider="type: environment; convex: false"></a-entity>
     </a-entity>
     <a-animation begin="start4" attribute="position" delay="3000" dur="2000" repeat="indefinite" easing="linear" from="0 500 0" to="0 0 0"></a-animation>
     </a-entity>
 
-    <a-entity id="block4" position="0 0 0">
+    <a-entity id="block4x" position="0 0 0">
     <a-entity id="block4b" position="-1000 0 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 3" material="color: #4158f4" n-mesh-collider="type: environment; convex: false"></a-entity>
     </a-entity>
     <a-animation begin="start4" attribute="position" delay="2000" dur="2000" repeat="indefinite" easing="linear" from="0 500 0" to="0 0 0"></a-animation>
     </a-entity>
 
-    <a-entity id="block4" position="0 0 0">
+    <a-entity id="block4x" position="0 0 0">
     <a-entity id="block4b" position="-1000 0 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="2 8 4" position="0 2 -3" material="color: #4158f4" n-mesh-collider="type: environment; convex: false"></a-entity>
     </a-entity>
@@ -679,7 +684,7 @@
     <a-animation begin="start5" attribute="position" delay="11000" dur="10000" repeat="indefinite" easing="linear" fill="forwards" from="-500 250 15" to="500 -248 -12"></a-animation>
     </a-entity>
     
-    <a-entity id="block5" position="0 -500 0">
+    <a-entity id="block5x" position="0 -500 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="3.25 8 3.25" position="0 2 -3" material="color: #0618a3" rotation="0 0 65" n-mesh-collider="type: environment; convex: false"></a-entity>
     <a-entity id="block5c" n-portal="targetEntity: #out" rotation="0 0 65" scale="0.2 1 3" position="0 0 -3">
       <a-animation begin="outgo2" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
@@ -688,7 +693,7 @@
     <a-animation begin="start5" attribute="position" delay="16000" dur="10000" repeat="indefinite" easing="linear" fill="forwards" from="-500 250 -15" to="500 -248 12"></a-animation>
     </a-entity>
 
-    <a-entity id="block5" position="0 -500 0">
+    <a-entity id="block5x" position="0 -500 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="3.25 8 3.25" position="0 2 3" material="color: #0618a3" rotation="0 0 65" n-mesh-collider="type: environment; convex: false"></a-entity>
     <a-entity id="block5c" n-portal="targetEntity: #out" rotation="0 0 65" scale="0.2 1 3" position="0 0 3">
       <a-animation begin="outgo2" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
@@ -715,7 +720,7 @@
     <a-animation begin="start5" attribute="position" delay="22000" dur="10000" repeat="indefinite" easing="linear" fill="forwards" from="-500 250 15" to="500 -248 -12"></a-animation>
     </a-entity>
 
-    <a-entity id="block5" position="0 -500 0">
+    <a-entity id="block5x" position="0 -500 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="3.25 8 3.25" position="0 2 -3" material="color: #0618a3" rotation="0 0 65" n-mesh-collider="type: environment; convex: false"></a-entity>
     <a-entity id="block5c" n-portal="targetEntity: #out" rotation="0 0 65" scale="0.2 1 3" position="0 0 -3">
       <a-animation begin="outgo2" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
@@ -724,7 +729,7 @@
     <a-animation begin="start5" attribute="position" delay="27000" dur="10000" repeat="indefinite" easing="linear" fill="forwards" from="-500 250 -15" to="500 -248 12"></a-animation>
     </a-entity>
 
-    <a-entity id="block5" position="0 -500 0">
+    <a-entity id="block5x" position="0 -500 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="3.25 8 3.25" position="0 2 3" material="color: #0618a3" rotation="0 0 65" n-mesh-collider="type: environment; convex: false"></a-entity>
     <a-entity id="block5c" n-portal="targetEntity: #out" rotation="0 0 65" scale="0.2 1 3" position="0 0 3">
       <a-animation begin="outgo2" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
@@ -751,7 +756,7 @@
     <a-animation begin="start5" attribute="position" delay="35000" dur="10000" repeat="indefinite" easing="linear" fill="forwards" from="-500 250 15" to="500 -248 -12"></a-animation>
     </a-entity>
    
-   <a-entity id="block5" position="0 -500 0">
+   <a-entity id="block5x" position="0 -500 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="3.25 8 3.25" position="0 2 -3" material="color: #0618a3" rotation="0 0 65" n-mesh-collider="type: environment; convex: false"></a-entity>
     <a-entity id="block5c" n-portal="targetEntity: #out" rotation="0 0 65" scale="0.2 1 3" position="0 0 -3">
       <a-animation begin="outgo2" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
@@ -760,7 +765,7 @@
     <a-animation begin="start5" attribute="position" delay="39000" dur="10000" repeat="indefinite" easing="linear" fill="forwards" from="-500 250 -15" to="500 -248 12"></a-animation>
     </a-entity>
 
-    <a-entity id="block5" position="0 -500 0">
+    <a-entity id="block5x" position="0 -500 0">
     <a-entity geometry="primitive: box; buffer: false;" scale="3.25 8 3.25" position="0 2 3" material="color: #0618a3" rotation="0 0 65" n-mesh-collider="type: environment; convex: false"></a-entity>
     <a-entity id="block5c" n-portal="targetEntity: #out" rotation="0 0 65" scale="0.2 1 3" position="0 0 3">
       <a-animation begin="outgo2" attribute="position" dur="8000" repeat="0" easing="linear" from="0 -100 0" to="0 0 -3"></a-animation>
@@ -777,7 +782,7 @@
     document.querySelector("#startcc").components.wire.actOnTargets();
     document.querySelector("#begin3").components["n-sound"].playSound();
 
-    ' wire="on: click; emit: start1; targets: #room, #floor, #right, #left, #block1, #block1b, #load, #startcc, #startcc2, #tunnel, #cube1, #gameover, #scoreboard, #floorwa, #move, #start2goa, #start3goa, #start4goa, #start5goa, #target, #boss, #block5, #click" syncclicks altspace-cursor-collider="enabled: true">
+    ' wire="on: click; emit: start1; targets: #room, #floor, #right, #left, #block1, #block1x, #block1b, #load, #startcc, #startcc2, #tunnel, #cube1, #gameover, #scoreboard, #floorwa, #move, #start2goa, #start3goa, #start4goa, #start5goa, #target, #boss, #block5, #click" syncclicks altspace-cursor-collider="enabled: true">
       <a-animation begin="start1" attribute="position" dur="2500" repeat="0" to="0 -1000 0"></a-animation>      
     </a-entity>
 
@@ -791,12 +796,12 @@
     
 
     <a-entity id="cube1" position="10 0 0">
-    <a-entity geometry="primitive: box; buffer: false;" scale="0.1 10 10" position="-15 15 0" material="color: blue; opacity: 1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>    
-    <a-entity geometry="primitive: box; buffer: false;" scale="30 10 0.1" position="0 15 -5" material="color: blue; opacity: 1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
-    <a-entity geometry="primitive: box; buffer: false;" scale="0.1 10 10" position="5 15 0" material="color: blue; opacity: 1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
-    <a-entity geometry="primitive: box; buffer: false;" scale="30 10 0.1" position="0 15 5" material="color: blue; opacity: 1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
-    <a-entity geometry="primitive: box; buffer: false;" scale="9.9 0.1 10" position="0 10 0" material="color: blue; opacity: 1;" n-mesh-collider="type: environment; convex: false"></a-entity>
-    <a-entity geometry="primitive: box; buffer: false;" scale="10 0.1 10" position="0 -20 0" material="color: blue; opacity: 1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="0.1 10 10" position="-15 15 0" material="color: #5ed4ff; opacity: 1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>    
+    <a-entity geometry="primitive: box; buffer: false;" scale="30 10 0.1" position="0 15 -5.05" material="color: #5ed4ff; opacity: 1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="0.1 10 10" position="5 15 0" material="color: #5ed4ff; opacity: 1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="30 10 0.1" position="0 15 5.05" material="color: #5ed4ff; opacity: 1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="9.9 0.1 10" position="0 9.9 0" material="color: #5ed4ff; opacity: 1;" n-mesh-collider="type: environment; convex: false"></a-entity>
+    <a-entity geometry="primitive: box; buffer: false;" scale="10 0.1 10" position="0 -20 0" material="color: #5ed4ff; opacity: 1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light></a-entity>
     <a-entity geometry="primitive: plane; buffer: false; width: 6; height: 4.5" material="src: #arkwall; opacity: 1;" position="0 13 -4.9" rotation="0 0 0"></a-entity>
     <a-entity geometry="primitive: plane; buffer: false; width: 1.25; height: 2" material="src: #credit; opacity: 1;" position="0 12 4.9" rotation="0 180 0"></a-entity>
     <a-entity geometry="primitive: plane; buffer: false; width: 8; height: 8" material="src: #scoreboardp; opacity: 1;" position="-14.9 15.5 0" rotation="0 90 0"></a-entity>
@@ -824,10 +829,10 @@
     </a-entity>
 
     <a-entity id="outp" position="0 -100 0" scale="1 1 1" n-portal="targetEntity: #out" n-cockpit-parent>
-      <a-animation id="outpa" begin="outgo" attribute="position" dur="250" fill="backwards" repeat="0" to="0 0 0"></a-animation>
+      <a-animation id="outpa" begin="outgo" attribute="position" dur="500" fill="backwards" repeat="0" to="0 0 0"></a-animation>
     </a-entity>
     <a-entity id="inp" position="0 -100 0" scale="1 1 1" n-portal="targetEntity: #in" n-cockpit-parent>
-      <a-animation id="inpa" begin="outgo" attribute="position" dur="250" delay="3000" fill="backwards" repeat="0" to="0 0 0"></a-animation>
+      <a-animation id="inpa" begin="outgo" attribute="position" dur="500" delay="3000" fill="backwards" repeat="0" to="0 0 0"></a-animation>
     </a-entity>
 
     <a-entity id="floor" geometry="primitive: plane; buffer: false;" scale="1500 10 1" position="0 -100 0" rotation="-90 0 0" material="color: #5ed4ff; opacity: 1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light>
@@ -842,22 +847,22 @@
     </a-entity>
     
     <a-entity id="start2go" position="0 -1000 -2010">
-    <a-entity id="start2gocon" position="0 0 0" n-box-collider="isTrigger:true; type:environment; size: 50 50 50" n-container="capacity: 1" wire="on: container-full; emit: start2; targets: #block2, #block2b, #target"></a-entity>
+    <a-entity id="start2gocon" position="0 0 0" n-box-collider="isTrigger:true; type:environment; size: 50 50 50" n-container="capacity: 1" wire="on: container-full; emit: start2; targets: #block2, #block2x, #block2b, #target"></a-entity>
     <a-animation id="start2goa" begin="start1" delay="50000" attribute="position" dur="5000" fill="backwards" repeat="0" to="0 0 0"></a-animation>
     </a-entity>
 
     <a-entity id="start3go" position="200 -1000 -2010">
-    <a-entity id="start3gocon" position="0 0 0" n-box-collider="isTrigger:true; type:environment; size: 50 50 50" n-container="capacity: 1" wire="on: container-full; emit: start3; targets: #block3, #block3b, #target"></a-entity>
+    <a-entity id="start3gocon" position="0 0 0" n-box-collider="isTrigger:true; type:environment; size: 50 50 50" n-container="capacity: 1" wire="on: container-full; emit: start3; targets: #block3, #block3x, #block3b, #target"></a-entity>
     <a-animation id="start3goa" begin="start1" delay="100000" attribute="position" dur="5000" fill="backwards" repeat="0" to="0 0 0"></a-animation>
     </a-entity>
 
     <a-entity id="start4go" position="400 -1000 -2010">
-    <a-entity id="start4gocon" position="0 0 0" n-box-collider="isTrigger:true; type:environment; size: 50 50 50" n-container="capacity: 1" wire="on: container-full; emit: start4; targets: #block4, #block4b, #target"></a-entity>
+    <a-entity id="start4gocon" position="0 0 0" n-box-collider="isTrigger:true; type:environment; size: 50 50 50" n-container="capacity: 1" wire="on: container-full; emit: start4; targets: #block4, #block4x, #block4b, #target"></a-entity>
     <a-animation id="start4goa" begin="start1" delay="150000" attribute="position" dur="5000" fill="backwards" repeat="0" to="0 0 0"></a-animation>
     </a-entity>
 
     <a-entity id="start5go" position="600 -1000 -2010">
-    <a-entity id="start5gocon" position="0 0 0" n-box-collider="isTrigger:true; type:environment; size: 50 50 50" n-container="capacity: 1" wire="on: container-full; emit: start5; targets: #block5, #block5b, #target, #bossm, #hah1, #hah3, #hah3"></a-entity>
+    <a-entity id="start5gocon" position="0 0 0" n-box-collider="isTrigger:true; type:environment; size: 50 50 50" n-container="capacity: 1" wire="on: container-full; emit: start5; targets: #block5, #block5x, #block5b, #target, #bossm, #hah1, #hah3, #hah3"></a-entity>
     <a-animation id="start5goa" begin="start1" delay="200000" attribute="position" dur="5000" fill="backwards" repeat="0" to="0 0 0"></a-animation>
     </a-entity>
 
@@ -934,7 +939,7 @@
 
     <script>
  
-  document.querySelector('#resetport').click();
+  
 
   var gameStarted = true;
   var score = 0;
@@ -946,6 +951,36 @@
   var lastscore5 = 0;
   var heady = 0;
   var boss = false;
+
+  setTimeout(function() {document.querySelector('#resetport').click();}, 1000);
+
+  if (/AltspaceVR-App build-[0-9a-f]{7} Mobile/.test(navigator.userAgent)) {
+       document.querySelector('#move').innerHTML = ' ';
+       for (var i = 0; i < document.querySelectorAll('#block1x').length; ++i) {
+  document.querySelectorAll('#block1x')[i].innerHTML = '';
+  document.querySelectorAll('#block1x')[i].setAttribute('position', '0 -1000 0');
+}
+for (var i = 0; i < document.querySelectorAll('#block2x').length; ++i) {
+  document.querySelectorAll('#block2x')[i].innerHTML = '';
+  document.querySelectorAll('#block2x')[i].setAttribute('position', '0 -1000 0');
+}
+for (var i = 0; i < document.querySelectorAll('#block3x').length; ++i) {
+  document.querySelectorAll('#block3x')[i].innerHTML = '';
+  document.querySelectorAll('#block3x')[i].setAttribute('position', '0 -1000 0');
+}
+for (var i = 0; i < document.querySelectorAll('#block4x').length; ++i) {
+  document.querySelectorAll('#block4x')[i].innerHTML = '';
+  document.querySelectorAll('#block4x')[i].setAttribute('position', '0 -1000 0');
+}
+for (var i = 0; i < document.querySelectorAll('#block5x').length; ++i) {
+  document.querySelectorAll('#block5x')[i].innerHTML = '';
+  document.querySelectorAll('#block5x')[i].setAttribute('position', '0 -1000 0');
+}
+       document.querySelector('#tunnel').innerHTML = ' ';
+       document.querySelector('#floor').setAttribute('position', '0 -0.5 0');
+       document.querySelector('#left').setAttribute('position', '0 22 -13');
+       document.querySelector('#right').setAttribute('position', '0 22 13');
+       }
 
   
   document.querySelector('#gameover').addEventListener('container-count-changed', function(e){
