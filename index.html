@@ -3,7 +3,7 @@
   <head>
 
     <!--
-    Ark - A game by Ducky - V1.3
+    Ark - A game by Ducky - V1.8
 
     A runner game for use in AltSpace
 
@@ -11,6 +11,7 @@
     Ben G
     Chris
     Rella
+    Genesis
     Random test subjects
 
     Anouncer voice - ryanconway - CC Licence - The original file has been heavly modified.
@@ -835,15 +836,15 @@
       <a-animation id="inpa" begin="outgo" attribute="position" dur="500" delay="3000" fill="backwards" repeat="0" to="0 0 0"></a-animation>
     </a-entity>
 
-    <a-entity id="floor" geometry="primitive: plane; buffer: false;" scale="1500 10 1" position="0 -100 0" rotation="-90 0 0" material="color: #5ed4ff; opacity: 1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light>
-      <a-animation begin="start1" attribute="position" dur="2500" repeat="0" to="0 0 0"></a-animation>
+    <a-entity id="floor" geometry="primitive: plane; buffer: false;" scale="1500 10 1" position="0 -0.05 0" rotation="-90 0 0" material="color: #5ed4ff; opacity: 1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light>
+      <a-animation id="floora1" begin="start1" attribute="position" dur="2500" repeat="0" to="0 0 0"></a-animation>
     </a-entity>
 
-    <a-entity id="left" geometry="primitive: plane; buffer: false;" scale="1500 50 1" position="0 22 -113" rotation="-20 0 0" material="color: #5ed4ff; opacity: 1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light>
-      <a-animation begin="start1" attribute="position" dur="2500" repeat="0" to="0 22 -13"></a-animation>
+    <a-entity id="left" geometry="primitive: plane; buffer: false;" scale="1500 50 1" position="0 22 -13" rotation="-20 0 0" material="color: #5ed4ff; opacity: 1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light>
+      <a-animation id="lefta1" begin="start1" attribute="position" dur="2500" repeat="0" from="0 22 -113" to="0 22 -13"></a-animation>
     </a-entity>
-    <a-entity id="right" geometry="primitive: plane; buffer: false;" scale="1500 50 1" position="0 22 113" rotation="-160 0 0" material="color: #5ed4ff; opacity: 1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light>
-      <a-animation begin="start1" attribute="position" dur="2500" repeat="0" to="0 22 13"></a-animation>
+    <a-entity id="right" geometry="primitive: plane; buffer: false;" scale="1500 50 1" position="0 22 13" rotation="-160 0 0" material="color: #5ed4ff; opacity: 1;" n-mesh-collider="type: environment; convex: false" bake-vertex-light>
+      <a-animation id="righta1" begin="start1" attribute="position" dur="2500" repeat="0" from="0 22 113" to="0 22 13"></a-animation>
     </a-entity>
     
     <a-entity id="start2go" position="0 -1000 -2010">
@@ -955,36 +956,23 @@
   setTimeout(function() {document.querySelector('#resetport').click();}, 1000);
 
   if (/AltspaceVR-App build-[0-9a-f]{7} Mobile/.test(navigator.userAgent)) {
-       document.querySelector('#move').innerHTML = ' ';
-       for (var i = 0; i < document.querySelectorAll('#block1x').length; ++i) {
-  document.querySelectorAll('#block1x')[i].innerHTML = '';
-  document.querySelectorAll('#block1x')[i].setAttribute('position', '0 -1000 0');
-}
-for (var i = 0; i < document.querySelectorAll('#block2x').length; ++i) {
-  document.querySelectorAll('#block2x')[i].innerHTML = '';
-  document.querySelectorAll('#block2x')[i].setAttribute('position', '0 -1000 0');
-}
-for (var i = 0; i < document.querySelectorAll('#block3x').length; ++i) {
-  document.querySelectorAll('#block3x')[i].innerHTML = '';
-  document.querySelectorAll('#block3x')[i].setAttribute('position', '0 -1000 0');
-}
-for (var i = 0; i < document.querySelectorAll('#block4x').length; ++i) {
-  document.querySelectorAll('#block4x')[i].innerHTML = '';
-  document.querySelectorAll('#block4x')[i].setAttribute('position', '0 -1000 0');
-}
-for (var i = 0; i < document.querySelectorAll('#block5x').length; ++i) {
-  document.querySelectorAll('#block5x')[i].innerHTML = '';
-  document.querySelectorAll('#block5x')[i].setAttribute('position', '0 -1000 0');
-}
-       document.querySelector('#tunnel').innerHTML = ' ';
+
+var blocks = document.querySelectorAll('#block1x, #block2x, #block3x, #block4x, #block5x, #tunnel, #move, #floora1, #lefta1, #righta1');
+ for (var i = 0; i < blocks.length; ++i) {
+    var el = blocks[i];
+    console.log("blocks removed", el, el.parentNode);
+    el.parentNode.removeChild(el);
+    console.log("blocks removed")
+ }
        document.querySelector('#floor').setAttribute('position', '0 -0.5 0');
        document.querySelector('#left').setAttribute('position', '0 22 -13');
        document.querySelector('#right').setAttribute('position', '0 22 13');
+       console.log("enclosure repositioned");
        }
 
   
   document.querySelector('#gameover').addEventListener('container-count-changed', function(e){
-  console.log('gameover: ' + e.detail.count);
+ // console.log('gameover: ' + e.detail.count);
   if (e.detail.count == 0 && e.detail.oldCount == 1 && gameStarted ) {
     document.querySelector('#resetb').click();
   }
@@ -1076,8 +1064,8 @@ for (var i = 0; i < document.querySelectorAll('#block5x').length; ++i) {
         headg = head.position.z;
         headb = head.position.x;
         heady = head.position.y;
-        console.log(head.position.z)
-        console.log(head.position.x)
+     //   console.log(head.position.z)
+     //   console.log(head.position.x)
   
         if (headg >= 5) {
           document.querySelector('#oob').click();
