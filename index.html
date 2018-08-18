@@ -20,44 +20,64 @@
     <meta charset="utf-8">
     <title>Ark</title>
     <meta name="Ark" content="Ark">
-    <script src="https://aframe.io/releases/0.3.0/aframe.js"></script>
-    <script src="https://cdn.rawgit.com/AltspaceVR/AltspaceSDK/v2.4.5/dist/altspace.js"></script>
-    <script src="https://cdn.rawgit.com/norybiak/Aframe-gltf/v0.1.2/dist/aframe-gltf.js"></script>
+    <script src="https://aframe.io/releases/0.7.0/aframe.min.js"></script>
+    <script src="https://sdk.altvr.com/libs/altspace.js/2.9.0/altspace.js"></script>
     <script src="bake-vertex-light.js"></script>
-    <script src="cached-model.js"></script>
     <script>
+window.addNativeEventListener = function(name, callback) {
+    return (altspace.inClient && altspace._internal && altspace._internal.couiEngine) ? altspace._internal.couiEngine.on(name, callback) : null;
+}
+
+window.removeAllNativeEventListeners = function(name) {
+    if(altspace.inClient && altspace._internal && altspace._internal.couiEngine && altspace._internal.couiEngine.events[name]) delete altspace._internal.couiEngine.events[name];
+}
+
+// Override A-Frame Callback For NativeSoundLoadedEvent To Suppress Errors That Occur When Object Doesn't Exist
+if(!window.overrideNativeSoundLoadedEvent) {
+    window.overrideNativeSoundLoadedEvent = true;
+
+    window.removeAllNativeEventListeners('NativeSoundLoadedEvent');
+    window.addNativeEventListener('NativeSoundLoadedEvent', function(meshId) {
+        altspace._internal.forwardEventToChildIFrames('NativeSoundLoadedEvent', arguments);
+
+        var object3D = altspace._internal.getObject3DById(meshId);
+        if(object3D && object3D.el) object3D.el.emit('n-sound-loaded', null, true);
+    });
+}
+</script>
+<script>
      AFRAME.registerComponent('syncclicks', {
-      init: function () {
+      init: function() {
         var scene = document.querySelector('a-scene');
         var el = this.el;
         var self = this;
-        function sendEvent() {
-          var event = {sender: scene.object3D.uuid, el: el.id, time: Date.now()}
-          self.connection.instance.child('event').set(event);
-        }
-        function receiveEvent (snapshot){
+        this.sendEvent = () => {
+          var event = {sender: scene.object3D.uuid, el: this.el.id, time: Date.now()}
+          this.connection.instance.child('event').set(event);
+        };
+        this.receiveEvent = snapshot => {
           var val = snapshot.val();
-          if (val.el === el.id && scene.object3D.uuid !== val.sender) { 
-            el.onclick();
+          if (val && val.el === this.el.id && scene.object3D.uuid !== val.sender) {
+            this.el.onclick();
           }
-        }
-        altspace.utilities.sync.connect({appId: 'aframe-event-syncc', authorId: 'Ducky'}).then(function (connection){
+        };
+        altspace.utilities.sync.connect({appId: 'ark', authorId: 'ducky'}).then(connection => {
           self.connection = connection;
-          connection.instance.child('event').on('value', receiveEvent);
-          el.addEventListener('click', sendEvent);
+          connection.instance.child('event').on('value', self.receiveEvent);
+          el.addEventListener('click', self.sendEvent);
         });
       },
-      remove: function () {
-        this.el.removeEventListener('click', sendEvent);
-        this.connection.instance.child('event').off('value', receiveEvent);
+      remove: function() {
+        this.el.removeEventListener('click', this.sendEvent);
+        this.connection.instance.child('event').off('value', this.receiveEvent);
       }
     });
-    </script>
+</script>
 
 </head>
   <body>
 
-    <a-scene altspace="verticalAlign: middle; fullspace: true" vr-mode-ui="enabled: false"> <!-- sync-system="author: Ducky; app: ark"-->
+    <a-scene altspace="verticalAlign: middle; fullspace: true" vr-mode-ui="enabled: false">
 
     <a-assets> 
         <img id="leftp" src="left.jpg">
@@ -886,7 +906,7 @@
 
     </a-entity>
 
-    <a-entity id="resetb" geometry="primitive: plane; buffer: false; width: 6; height: 1.35" material="src: #resetp; opacity: 0.75;" position="13 -1000 0" scale="0.5 0.5 0.5" material="color: blue; opacity: 0" rotation="0 -90 0" onclick="reset()" syncclicks altspace-cursor-collider="enabled: true">
+    <a-entity id="resetb" geometry="primitive: plane; buffer: false; width: 6; height: 1.35" material="src: #resetp; opacity: 0.75;" position="13 -1000 0" scale="0.5 0.5 0.5" material="color: blue; opacity: 0" rotation="0 -90 0" onclick='reset()' syncclicks altspace-cursor-collider="enabled: true">
       <a-animation id="endmove" begin="gameend" attribute="position" dur="5000" delay="0" fill="backwards" repeat="0" to="0 -1000 0"></a-animation>
     </a-entity>
 
