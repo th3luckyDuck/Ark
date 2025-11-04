@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Ark — Tunnel build (open roof, correct facing, collisions by logic, full flow)</title>
+    <title>Ark — Tunnel build (open roof, correct facing, consistent audio, solid start, collisions)</title>
 
     <!-- A-Frame core -->
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
@@ -30,18 +30,27 @@
         }
       });
 
-      /* ===== HUD anchor (bottom of camera) ===== */
+      /* ===== HUD anchor (in front of camera along +X, facing player) ===== */
       AFRAME.registerComponent('hud-anchor', {
-        schema: { offset: {type:'vec3', default: {x:0, y:-0.52, z:-1.05}}, tilt: {type:'number', default:-8} },
+        schema: {
+          offset: {type:'vec3', default: {x: 2.2, y: -0.3, z: 0}}, // slightly ahead along +X
+          tilt: {type:'number', default: 0}
+        },
         tick() {
-          const {x,y,z} = this.data.offset;
+          const cam = this.el.sceneEl.camera?.el;
+          if (!cam) return;
+          const camPos = cam.object3D.position;
+          const camRot = cam.object3D.rotation;
           const o3 = this.el.object3D;
-          o3.position.set(x,y,z);
-          o3.rotation.set(THREE.MathUtils.degToRad(this.data.tilt),0,0);
+
+          // Place HUD a bit in front of camera toward +X in world space
+          o3.position.set(camPos.x + this.data.offset.x, camPos.y + this.data.offset.y, camPos.z + this.data.offset.z);
+          // Face camera: since camera looks +X (yaw 90°), rotate HUD to -90° yaw so its front faces camera
+          o3.rotation.set(THREE.MathUtils.degToRad(this.data.tilt), THREE.MathUtils.degToRad(-90), 0);
         }
       });
 
-      /* ===== Runner physics (logic-only, no external physics; prevents walking through walls) ===== */
+      /* ===== Runner physics (logic-only; lanes, jump; solid collision reset) ===== */
       AFRAME.registerComponent('runner-physics', {
         schema: { gravity:{default:-9.8}, jumpVelocity:{default:6}, groundY:{default:0} },
         init() {
@@ -53,7 +62,7 @@
           this.obstacles = [];
           this.refreshObstacles = () => { this.obstacles = qa('.obstacle'); };
 
-          // Disable WASD position drift: keep player anchored at X=0 (we face +X down the tunnel)
+          // Anchor player at origin looking down +X
           const p = this.el.object3D.position;
           p.set(0, this.data.groundY + this.size.y/2, 0);
 
@@ -82,7 +91,7 @@
           const groundY = this.data.groundY + this.size.y/2; // floor at y=0
           if(pos.y<=groundY){ pos.y=groundY; this.velY=0; this.grounded=true; }
 
-          // Player AABB
+          // Player AABB (for camera hit logic)
           const half = new THREE.Vector3(this.size.x/2, this.size.y/2, this.size.z/2);
           const min = new THREE.Vector3().copy(pos).sub(half);
           const max = new THREE.Vector3().copy(pos).add(half);
@@ -112,6 +121,7 @@
       let timers = [];
       let intervals = [];
       let gameStarted = false;
+      let startWired = false; // prevents double-start bug
       let scoring = false;
       let score = 0;
       let lastscore=0,lastscore2=0,lastscore3=0,lastscore4=0,lastscore5=0;
@@ -138,7 +148,7 @@
           return e;
         };
 
-        // Corridor along X: player at x=0, extends far to +X, open roof
+        // Floor at y=0; open roof; extends far down +X
         const floor = mk('400 0 0','-90 0 0','800 10 10','#1f4959');
         const left  = mk('400 15 -10','0 0 0','800 30 1','#1f4959');
         const right = mk('400 15 10','0 0 0','800 30 1','#1f4959');
@@ -169,8 +179,8 @@
 
         const box = document.createElement('a-box');
         box.classList.add('obstacle');
+        box.setAttribute('geometry', 'primitive: box; width: 2; height: 8; depth: 4'); // ensure geometry values exist
         box.setAttribute('position', `${startX} ${fallH} ${laneZ}`);
-        box.setAttribute('scale', '2 8 4');
         box.setAttribute('material', `color: ${colors[level]}; side: double; metalness:0; roughness:1`);
 
         // fall to y=2
@@ -208,6 +218,9 @@
 
       /* ===== Music + gates ===== */
       function wireMusicAndGates(){
+        if (startWired) return; // prevent double wiring causing first-click anomaly
+        startWired = true;
+
         const target=q('#target'); if(!target) return;
 
         target.addEventListener('start1', ()=>{
@@ -215,7 +228,6 @@
           play('#song');
           scoring=true;
           scheduleBlocks(1, 45, 1450);
-          // 3-2-1 countdown: in tunnel, facing down +X at player
           showCountdown();
         }, {once:true});
 
@@ -273,13 +285,13 @@
       function showCountdown(){
         // Place countdown planes in front of player, in tunnel, facing player (+X direction)
         const basePos = new THREE.Vector3(2, 1, 0); // slightly ahead on +X, centered lane
+        const rot = '0 -90 0'; // face +X toward player
         const three=q('#threeb'), two=q('#twob'), one=q('#oneb');
-        const face = '0 -90 0'; // rotate so they face +X toward player camera
         if (three && two && one){
           three.setAttribute('position', `${basePos.x} ${basePos.y} ${basePos.z}`);
           two.setAttribute('position',   `0 -100 0`);
           one.setAttribute('position',   `0 -100 0`);
-          three.setAttribute('rotation', face); two.setAttribute('rotation', face); one.setAttribute('rotation', face);
+          three.setAttribute('rotation', rot); two.setAttribute('rotation', rot); one.setAttribute('rotation', rot);
           setTimeout(()=>{ three.setAttribute('position','0 -100 0'); two.setAttribute('position', `${basePos.x} ${basePos.y} ${basePos.z}`); },1000);
           setTimeout(()=>{ two.setAttribute('position','0 -100 0'); one.setAttribute('position', `${basePos.x} ${basePos.y} ${basePos.z}`); },2000);
           setTimeout(()=>{ one.setAttribute('position','0 -100 0'); },3000);
@@ -294,6 +306,7 @@
         boss=false;
         scoring=false;
         gameStarted=false;
+        startWired=false; // allow wiring again after reset
 
         if (score>=50){ lastscore5=lastscore4; lastscore4=lastscore3; lastscore3=lastscore2; lastscore2=lastscore; lastscore=score; }
         setText('#lastscore', String(lastscore));
@@ -332,11 +345,12 @@
           play('#song2'); play('#click');
         });
 
-        // Start game
+        // Start game (fix double-click anomaly by wiring before emit)
         bindClick('#startcc', ()=>{
+          if (gameStarted) return; // ignore accidental re-clicks while running
+          wireMusicAndGates();     // ensure listeners are bound once
           play('#begin3');
           emit('start1',['#target','#tunnel']);
-          wireMusicAndGates();
           scoring=true; gameStarted=true;
           showCountdown();
         });
@@ -365,7 +379,7 @@
         bindClick('#joinsm',   ()=>{ play('#click2'); });
         bindClick('#joinh',    ()=>{ play('#click2'); });
 
-        // Reset button (explicit game reset)
+        // Reset button (explicit)
         bindClick('#resetb', ()=>{ hardReset(false); });
 
         // Scoring tick
@@ -410,63 +424,66 @@
       <a-light type="directional" intensity="1.4" position="150 25 15"></a-light>
       <a-light type="ambient" color="#ffffff" intensity="0.7"></a-light>
 
-      <!-- Player anchored; camera faces down +X -->
+      <!-- Player anchored; camera faces down +X; HUD in front of camera and rotated toward player -->
       <a-entity id="player" position="0 0.8 0" runner-physics>
-        <a-entity id="playerCam" camera look-controls cursor-whitelist></a-entity>
-        <!-- HUD -->
-        <a-entity id="HUD" hud-anchor>
-          <!-- Intro unlock (text button) -->
-          <a-plane id="enterArk" width="0.7" height="0.2" position="-0.95 0.02 -1.05" material="color:#2c3e50; side: double" class="ui"></a-plane>
-          <a-entity position="-0.95 0.02 -1.04" text="value: Enter Ark; color:#fff; align:center; width:3"></a-entity>
+        <a-entity id="playerCam" camera look-controls cursor-whitelist>
 
-          <!-- Start -->
-          <a-plane id="startcc" src="#startp" width="0.7" height="0.22" position="-0.20 0.02 -1.05" material="side: double" class="ui"></a-plane>
+          <!-- Attach all audio to camera for consistent spatial sound -->
+          <a-entity id="audio-root">
+            <a-entity id="song"   sound="src:url(arktheme.wav);   loop:true; autoplay:false; volume:0.2"></a-entity>
+            <a-entity id="song2"  sound="src:url(arkpregame.wav); loop:true; autoplay:false; volume:0.2"></a-entity>
+            <a-entity id="song3"  sound="src:url(arktheme2.wav);  loop:true; autoplay:false; volume:0.2"></a-entity>
+            <a-entity id="song4"  sound="src:url(arktheme3.wav);  loop:true; autoplay:false; volume:0.2"></a-entity>
+            <a-entity id="song5"  sound="src:url(arktheme4.wav);  loop:true; autoplay:false; volume:0.2"></a-entity>
+            <a-entity id="song6"  sound="src:url(level5.wav);     loop:true; autoplay:false; volume:0.3"></a-entity>
+            <a-entity id="hah1" sound="src:url(ha1.wav); loop:false; autoplay:false; volume:0.3"></a-entity>
+            <a-entity id="hah2" sound="src:url(ha2.wav); loop:false; autoplay:false; volume:0.3"></a-entity>
+            <a-entity id="hah3" sound="src:url(ha3.wav); loop:false; autoplay:false; volume:0.3"></a-entity>
+            <a-entity id="begin3" sound="src:url(begin.wav); loop:false; autoplay:false; volume:0.3"></a-entity>
+            <a-entity id="gameovers" sound="src:url(gameover.wav); loop:false; autoplay:false; volume:1"></a-entity>
+            <a-entity id="click"  sound="src:url(click.wav);  loop:false; autoplay:false; volume:0.3"></a-entity>
+            <a-entity id="click2" sound="src:url(click.wav);  loop:false; autoplay:false; volume:0.3"></a-entity>
+            <a-entity id="lazer"  sound="src:url(lazer.wav);  loop:false; autoplay:false; volume:0.3"></a-entity>
+          </a-entity>
 
-          <!-- Mute -->
-          <a-plane id="songT" src="#mutep" width="0.35" height="0.2" position="0.55 0.02 -1.05" material="side: double" class="ui"></a-plane>
+          <!-- HUD -->
+          <a-entity id="HUD" hud-anchor>
+            <!-- Intro unlock (text button) -->
+            <a-plane id="enterArk" width="0.7" height="0.2" material="color:#2c3e50; side: double" class="ui"></a-plane>
+            <a-entity text="value: Enter Ark; color:#fff; align:center; width:3" position="0.0 0.0 0.01"></a-entity>
 
-          <!-- Score -->
-          <a-entity id="scoreshow" position="1.05 0.02 -1.04" text="value: 0; color: #6FF3E8; align: left; width: 6"></a-entity>
+            <!-- Start -->
+            <a-plane id="startcc" src="#startp" width="0.7" height="0.22" material="side: double" class="ui" position="0.85 0 0"></a-plane>
 
-          <!-- Lane buttons -->
-          <a-plane id="leftT"   src="#leftp"   width="0.25" height="0.18" position="-1.05 -0.22 -1.05" material="side: double" class="ui"></a-plane>
-          <a-plane id="centerT" src="#centerp" width="0.25" height="0.18" position="-0.75 -0.22 -1.05" material="side: double" class="ui"></a-plane>
-          <a-plane id="rightT"  src="#rightp"  width="0.25" height="0.18" position="-0.45 -0.22 -1.05" material="side: double" class="ui"></a-plane>
+            <!-- Mute -->
+            <a-plane id="songT" src="#mutep" width="0.35" height="0.2" material="side: double" class="ui" position="1.35 0 0"></a-plane>
 
-          <!-- Jump -->
-          <a-plane id="jumpb" src="#jumpp" width="0.35" height="0.2" position="0.20 -0.22 -1.05" material="side: double" class="ui"></a-plane>
+            <!-- Score -->
+            <a-entity id="scoreshow" text="value: 0; color: #6FF3E8; align: left; width: 6" position="1.90 0 0.01"></a-entity>
 
-          <!-- Lobby / Join -->
-          <a-plane id="lobbybtn" src="#lobbyp" width="0.55" height="0.18" position="0.55 -0.22 -1.05" material="side: double" class="ui"></a-plane>
-          <a-plane id="joinsm"   src="#joinsmallp" width="0.24" height="0.18" position="0.95 -0.22 -1.05" material="side: double" class="ui"></a-plane>
-          <a-plane id="joinh"    src="#joinp" width="0.7" height="0.2" position="0.8 0.12 -1.05" material="side: double" class="ui"></a-plane>
+            <!-- Lane buttons -->
+            <a-plane id="leftT"   src="#leftp"   width="0.25" height="0.18" material="side: double" class="ui" position="0.20 -0.22 0"></a-plane>
+            <a-plane id="centerT" src="#centerp" width="0.25" height="0.18" material="side: double" class="ui" position="0.50 -0.22 0"></a-plane>
+            <a-plane id="rightT"  src="#rightp"  width="0.25" height="0.18" material="side: double" class="ui" position="0.80 -0.22 0"></a-plane>
+
+            <!-- Jump -->
+            <a-plane id="jumpb" src="#jumpp" width="0.35" height="0.2" material="side: double" class="ui" position="1.15 -0.22 0"></a-plane>
+
+            <!-- Lobby / Join -->
+            <a-plane id="lobbybtn" src="#lobbyp" width="0.55" height="0.18" material="side: double" class="ui" position="1.55 -0.22 0"></a-plane>
+            <a-plane id="joinsm"   src="#joinsmallp" width="0.24" height="0.18" material="side: double" class="ui" position="1.95 -0.22 0"></a-plane>
+            <a-plane id="joinh"    src="#joinp" width="0.7" height="0.2" material="side: double" class="ui" position="2.35 0.12 0"></a-plane>
+          </a-entity>
         </a-entity>
       </a-entity>
 
       <!-- Tunnel (open roof) -->
       <a-entity id="tunnel"></a-entity>
 
-      <!-- Countdown images (positioned by script to face player) -->
+      <!-- Countdown images (script positions them to face the player) -->
       <a-plane id="threeb" src="#p3" position="0 -100 0" width="1" height="1" material="side: double"></a-plane>
       <a-plane id="twob"   src="#p2" position="0 -100 0" width="1" height="1" material="side: double"></a-plane>
       <a-plane id="oneb"   src="#p1" position="0 -100 0" width="1" height="1" material="side: double"></a-plane>
-
-      <!-- Sounds -->
-      <a-entity id="song"   sound="src:url(arktheme.wav);   loop:true; autoplay:false; volume:0.2"></a-entity>
-      <a-entity id="song2"  sound="src:url(arkpregame.wav); loop:true; autoplay:false; volume:0.2"></a-entity>
-      <a-entity id="song3"  sound="src:url(arktheme2.wav);  loop:true; autoplay:false; volume:0.2"></a-entity>
-      <a-entity id="song4"  sound="src:url(arktheme3.wav);  loop:true; autoplay:false; volume:0.2"></a-entity>
-      <a-entity id="song5"  sound="src:url(arktheme4.wav);  loop:true; autoplay:false; volume:0.2"></a-entity>
-      <a-entity id="song6"  sound="src:url(level5.wav);     loop:true; autoplay:false; volume:0.3"></a-entity>
-
-      <a-entity id="hah1" sound="src:url(ha1.wav); loop:false; autoplay:false; volume:0.3"></a-entity>
-      <a-entity id="hah2" sound="src:url(ha2.wav); loop:false; autoplay:false; volume:0.3"></a-entity>
-      <a-entity id="hah3" sound="src:url(ha3.wav); loop:false; autoplay:false; volume:0.3"></a-entity>
-      <a-entity id="begin3" sound="src:url(begin.wav); loop:false; autoplay:false; volume:0.3"></a-entity>
-      <a-entity id="gameovers" sound="src:url(gameover.wav); loop:false; autoplay:false; volume:1"></a-entity>
-      <a-entity id="click"  sound="src:url(click.wav);  loop:false; autoplay:false; volume:0.3"></a-entity>
-      <a-entity id="click2" sound="src:url(click.wav);  loop:false; autoplay:false; volume:0.3"></a-entity>
-      <a-entity id="lazer"  sound="src:url(lazer.wav);  loop:false; autoplay:false; volume:0.3"></a-entity>
 
       <!-- Boss (invisible until level 5) -->
       <a-entity id="boss" position="800 -60 0" rotation="0 90 0" scale="50 50 50"
@@ -478,14 +495,14 @@
       <a-entity id="target"></a-entity>
 
       <!-- Reset button (explicit) -->
-      <a-plane id="resetb" src="#resetp" width="0.7" height="0.2" position="13 -2 0" rotation="0 -90 0" material="side: double" class="ui"></a-plane>
+      <a-plane id="resetb" src="#resetp" width="0.7" height="0.2" position="13 0 0" rotation="0 -90 0" material="side: double" class="ui"></a-plane>
 
       <!-- Minimal score history (text only) -->
-      <a-entity id="lastscore"  position="-14.8 16.75 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
-      <a-entity id="lastscore2" position="-14.8 15.75 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
-      <a-entity id="lastscore3" position="-14.8 14.75 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
-      <a-entity id="lastscore4" position="-14.8 13.75 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
-      <a-entity id="lastscore5" position="-14.8 12.75 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
+      <a-entity id="lastscore"  position="-14.8 2 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
+      <a-entity id="lastscore2" position="-14.8 1.5 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
+      <a-entity id="lastscore3" position="-14.8 1.0 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
+      <a-entity id="lastscore4" position="-14.8 0.5 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
+      <a-entity id="lastscore5" position="-14.8 0.0 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
 
       <!-- Sky -->
       <a-sky color="black" radius="1050"></a-sky>
