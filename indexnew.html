@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Ark — Open-roof 3-piece tunnel, HUD fixed to camera, full functionality</title>
+    <title>Ark — Open-roof V-tunnel, HUD fixed to camera, full functionality</title>
 
     <!-- A-Frame core -->
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
@@ -76,7 +76,7 @@
           const max = new THREE.Vector3().copy(pos).add(half);
           this.playerBox.min.copy(min); this.playerBox.max.copy(max);
 
-          // Collisions with blocks: hard reset
+          // Collisions with blocks: hard reset game immediately
           const obs = Array.isArray(this.obstacles) ? this.obstacles : [];
           for(const e of obs){
             const wp=new THREE.Vector3(); e.object3D.getWorldPosition(wp);
@@ -103,7 +103,7 @@
       function clearIntervals(){ intervals.forEach(i=>clearInterval(i)); intervals=[]; }
       function clearObstacles(){ qa('.obstacle').forEach(e=>e.parentNode.removeChild(e)); q('#player')?.components?.['runner-physics']?.refreshObstacles(); }
 
-      /* ===== Build tunnel (strict 3-piece; floor top at y=0; NO ROOF) ===== */
+      /* ===== Build tunnel (strict 3-piece; floor height 0.001 at y=0; V-shaped walls; NO ROOF) ===== */
       function buildTunnel(){
         // Remove any previous tunnel
         const old=q('#tunnel'); if(old) old.remove();
@@ -118,7 +118,7 @@
         const length = 2400;    // extends far in +X and -X
         const wallHeight = 30;
         const wallZ = 10;       // walls at ±10 on Z
-        const floorHeight = 1;  // thin floor
+        const floorHeight = 0.001;  // ultra-thin floor
 
         // Floor: top surface at y=0 ⇒ center at y = -floorHeight/2
         const floor=document.createElement('a-box');
@@ -128,17 +128,19 @@
         floor.setAttribute('depth', `20`);
         floor.setAttribute('material', 'color:#1f4959; side:double');
 
-        // Left wall
+        // Left wall — tilt outward to form V
         const left=document.createElement('a-box');
         left.setAttribute('position', `0 ${wallHeight/2} ${-wallZ}`);
+        left.setAttribute('rotation', `10 0 0`); // tilt outward (top moves further negative Z)
         left.setAttribute('width', `${length}`);
         left.setAttribute('height', `${wallHeight}`);
         left.setAttribute('depth', `1`);
         left.setAttribute('material', 'color:#1f4959; side:double');
 
-        // Right wall
+        // Right wall — tilt outward to form V
         const right=document.createElement('a-box');
         right.setAttribute('position', `0 ${wallHeight/2} ${wallZ}`);
+        right.setAttribute('rotation', `-10 0 0`); // tilt outward (top moves further positive Z)
         right.setAttribute('width', `${length}`);
         right.setAttribute('height', `${wallHeight}`);
         right.setAttribute('depth', `1`);
@@ -199,7 +201,7 @@
 
       /* ===== Music + gates ===== */
       function wireMusicAndGates(){
-        if (startWired) return; // prevent double wiring
+        if (startWired) return; // prevent double wiring causing first-click anomaly
         startWired = true;
 
         const target=q('#target'); if(!target) return;
@@ -256,7 +258,7 @@
           setTimeout(()=>play('#hah3'),4500);
         }, {once:true});
 
-        // Gate timers
+        // Gate timers (original cadence)
         timers.push(setTimeout(()=>emit('start2',['#target']), 50000));
         timers.push(setTimeout(()=>emit('start3',['#target']),100000));
         timers.push(setTimeout(()=>emit('start4',['#target']),150000));
@@ -314,7 +316,10 @@
           // Start centered in tunnel; face +X (yaw +90°)
           p.setAttribute('position','0 0.8 0');
           const cam = q('#playerCam');
-          if (cam) { cam.object3D.rotation.set(0, THREE.MathUtils.degToRad(90), 0); }
+          if (cam) { 
+            cam.setAttribute('look-controls','enabled: false'); // lock orientation
+            cam.object3D.rotation.set(0, THREE.MathUtils.degToRad(90), 0); 
+          }
           const phys=p.components['runner-physics'];
           if (phys){ phys.targetLane=1; phys.velY=0; phys.refreshObstacles(); }
         }
@@ -332,11 +337,12 @@
 
         // Start game (wire before emit)
         bindClick('#startcc', ()=>{
-          if (gameStarted) return;
-          wireMusicAndGates();
+          if (gameStarted) return; // ignore accidental re-clicks while running
+          wireMusicAndGates();     // ensure listeners are bound once
           play('#begin3');
           emit('start1',['#target']);
-          gameStarted=true;
+          scoring=true; gameStarted=true;
+          showCountdown();
         });
 
         // Lane buttons
@@ -374,9 +380,12 @@
         // Initialize obstacle list
         q('#player')?.components?.['runner-physics']?.refreshObstacles();
 
-        // Ensure camera faces down the tunnel (+X) at start
+        // Ensure camera faces down the tunnel (+X) at start and stays locked
         const cam=q('#playerCam');
-        if (cam) { cam.object3D.rotation.set(0, THREE.MathUtils.degToRad(90), 0); }
+        if (cam) { 
+          cam.setAttribute('look-controls','enabled: false');
+          cam.object3D.rotation.set(0, THREE.MathUtils.degToRad(90), 0); 
+        }
       });
     </script>
   </head>
@@ -406,9 +415,10 @@
       <a-light type="directional" intensity="1.4" position="150 25 15"></a-light>
       <a-light type="ambient" color="#ffffff" intensity="0.7"></a-light>
 
-      <!-- Player anchored; camera yaw +90° to face +X; HUD fixed to camera face -->
+      <!-- Player anchored; camera yaw +90° to face +X and locked; HUD fixed to camera face -->
       <a-entity id="player" position="0 0.8 0" runner-physics>
-        <a-entity id="playerCam" camera look-controls cursor-whitelist>
+        <a-entity id="playerCam" camera look-controls="enabled: false" cursor-whitelist>
+
           <!-- Attach audio to camera -->
           <a-entity id="audio-root">
             <a-entity id="song"   sound="src:url(arktheme.wav);   loop:true; autoplay:false; volume:0.2"></a-entity>
@@ -428,7 +438,7 @@
           </a-entity>
 
           <!-- HUD: bottom-centered row, rigidly attached to camera -->
-          <a-entity id="HUD" position="0 -0.85 -2.2">
+          <a-entity id="HUD" position="0 -0.85 -2.0">
             <a-entity id="hud-row" position="0 0 0">
               <!-- Left cluster -->
               <a-plane id="enterArk" width="0.6" height="0.18" material="color:#2c3e50; side: double" class="ui" position="-1.8 0 0"></a-plane>
@@ -454,15 +464,15 @@
         </a-entity>
       </a-entity>
 
-      <!-- Tunnel (strict 3-piece, open roof; floor top at y=0) -->
+      <!-- Tunnel (strict 3-piece, open roof; floor height 0.001 at y=0; V walls) -->
       <a-entity id="tunnel"></a-entity>
 
-      <!-- Countdown images -->
+      <!-- Countdown images (script positions them to face the player) -->
       <a-plane id="threeb" src="#p3" position="0 -100 0" width="1" height="1" material="side: double"></a-plane>
       <a-plane id="twob"   src="#p2" position="0 -100 0" width="1" height="1" material="side: double"></a-plane>
       <a-plane id="oneb"   src="#p1" position="0 -100 0" width="1" height="1" material="side: double"></a-plane>
 
-      <!-- Boss -->
+      <!-- Boss (invisible until level 5) -->
       <a-entity id="boss" position="800 -60 0" rotation="0 90 0" scale="50 50 50"
                 obj-model="obj: #run-obj"
                 material="color:#cccccc; side: double"
@@ -474,7 +484,7 @@
       <!-- Reset button (explicit) -->
       <a-plane id="resetb" src="#resetp" width="0.7" height="0.2" position="13 0 0" rotation="0 -90 0" material="side: double" class="ui"></a-plane>
 
-      <!-- Minimal score history -->
+      <!-- Minimal score history (text only) -->
       <a-entity id="lastscore"  position="-14.8 2 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
       <a-entity id="lastscore2" position="-14.8 1.5 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
       <a-entity id="lastscore3" position="-14.8 1.0 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
