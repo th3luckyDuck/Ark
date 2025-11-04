@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Ark — Browser edition (tunnel + block remake)</title>
+    <title>Ark — Browser edition (fixed obstacles + tunnel + boss)</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <style>
       html, body { margin:0; padding:0; background:#000; }
@@ -47,7 +47,9 @@
           this.lanes = [-3,0,3];
           this.size = new THREE.Vector3(0.8,1.6,0.8);
           this.playerBox = new THREE.Box3();
+          this.obstacles = []; // ensure defined to avoid "not iterable"
           this.refreshObstacles = () => { this.obstacles = qa('.obstacle'); };
+
           window.addEventListener('keydown', e => {
             const k = e.key;
             if (k==='ArrowLeft' || k==='a' || k==='A') this.targetLane = Math.max(0, this.targetLane-1);
@@ -72,8 +74,10 @@
           const min = new THREE.Vector3().copy(pos).sub(half);
           const max = new THREE.Vector3().copy(pos).add(half);
           this.playerBox.min.copy(min); this.playerBox.max.copy(max);
-          // collisions
-          for(const el of this.obstacles){
+
+          // obstacles guard
+          const obs = Array.isArray(this.obstacles) ? this.obstacles : [];
+          for(const el of obs){
             const o=el.object3D;
             const wp=new THREE.Vector3(); o.getWorldPosition(wp);
             const sc=new THREE.Vector3(); o.getWorldScale(sc);
@@ -106,10 +110,11 @@
       /* ===== Tunnel builder (open line-of-sight down entire run) ===== */
       function buildTunnel(){
         const scene=q('a-scene');
-        const tunnel=q('#tunnel')||document.createElement('a-entity');
-        tunnel.setAttribute('id','tunnel');
+        let tunnel=q('#tunnel');
+        if(!tunnel){ tunnel=document.createElement('a-entity'); tunnel.setAttribute('id','tunnel'); scene.appendChild(tunnel); }
+        tunnel.innerHTML='';
         tunnel.setAttribute('position','0 0 0');
-        // Long corridor: floor, left, right, ceiling — all double-sided
+
         const makePanel=(pos,rot,scale,color)=>{
           const e=document.createElement('a-box');
           e.setAttribute('position',pos);
@@ -118,52 +123,47 @@
           e.setAttribute('material',`color: ${color}; side: double`);
           return e;
         };
-        // Corridor along X: player at x=0, extends to x=200 then beyond
-        const floor = makePanel('100 0 0','-90 0 0','200 10 10','#1f4959');
-        const left  = makePanel('100 15 -10','0 0 0','200 30 1','#1f4959');
-        const right = makePanel('100 15 10','0 0 0','200 30 1','#1f4959');
-        const ceil  = makePanel('100 30 0','90 0 0','200 10 10','#1f4959');
-        // gentle UV scroll effect via animation on floor for motion illusion
+        // Corridor along X: player at x=0, extends to x=400
+        const floor = makePanel('200 0 0','-90 0 0','400 10 10','#1f4959');
+        const left  = makePanel('200 15 -10','0 0 0','400 30 1','#1f4959');
+        const right = makePanel('200 15 10','0 0 0','400 30 1','#1f4959');
+        const ceil  = makePanel('200 30 0','90 0 0','400 10 10','#1f4959');
+
         const anim=document.createElement('a-animation');
         anim.setAttribute('attribute','position');
         anim.setAttribute('begin','start1');
-        anim.setAttribute('to','350 0 0');
+        anim.setAttribute('to','450 0 0');
         anim.setAttribute('dur','100000');
         anim.setAttribute('easing','linear');
         anim.setAttribute('repeat','indefinite');
 
-        tunnel.innerHTML='';
         tunnel.appendChild(floor);
         tunnel.appendChild(left);
         tunnel.appendChild(right);
         tunnel.appendChild(ceil);
         tunnel.appendChild(anim);
-        if(!q('#tunnel')) scene.appendChild(tunnel);
       }
 
       /* ===== Block spawner: fall from sky, then rush toward player ===== */
       const colors = {1:'#ff0000',2:'#a041f4',3:'#f47c41',4:'#4158f4',5:'#0618a3'};
-      function spawnBlock({level=1, lane=0, startDelay=0, fallHeight=30, fallDur=1500, rushStartX=200, rushDur=5000}){
-        // lanes map to Z: -3,0,3
+      function spawnBlock({level=1, lane=0, startDelay=0, fallHeight=35, fallDur=1200, startX=350, rushDur=5000}){
         const laneZ = [-3,0,3][lane];
         const scene=q('a-scene');
         const box=document.createElement('a-box');
         box.classList.add('obstacle');
-        box.setAttribute('position', `${rushStartX} ${fallHeight} ${laneZ}`);
+        box.setAttribute('position', `${startX} ${fallHeight} ${laneZ}`);
         box.setAttribute('scale','2 8 4');
         box.setAttribute('material', `color: ${colors[level]}; side: double; metalness:0; roughness:1`);
-        // fall animation: to y=2
         const fall=document.createElement('a-animation');
         fall.setAttribute('attribute','position');
-        fall.setAttribute('from', `${rushStartX} ${fallHeight} ${laneZ}`);
-        fall.setAttribute('to',   `${rushStartX} 2 ${laneZ}`);
+        fall.setAttribute('from', `${startX} ${fallHeight} ${laneZ}`);
+        fall.setAttribute('to',   `${startX} 2 ${laneZ}`);
         fall.setAttribute('dur', String(fallDur));
         fall.setAttribute('delay', String(startDelay));
         fall.setAttribute('easing','easeOutCubic');
-        // rush animation: move X from rushStartX to -50 past the player
         const rush=document.createElement('a-animation');
         rush.setAttribute('attribute','position');
-        rush.setAttribute('from', `${rushStartX} 2 ${laneZ}`);
+        rush.setAttribute('from', `${startX} 2 ${laneZ}`);
         rush.setAttribute('to',   `-50 2 ${laneZ}`);
         rush.setAttribute('dur', String(rushDur));
         rush.setAttribute('delay', String(startDelay + fallDur));
@@ -173,23 +173,20 @@
         q('#player')?.components?.['runner-physics']?.refreshObstacles();
       }
 
-      /* ===== Level scripts (derived cadence; matches your start gates) ===== */
+      /* ===== Level scripts (cadence approximated from original) ===== */
       function scheduleLevel(level, baseDelay){
-        // lanes sequence, staggered
         const patterns = [
-          [1,0,2,1], // L1: center,left,right,center
-          [0,2,1],   // L2
-          [2,1,0,2], // L3
-          [0,1,2],   // L4
+          [1,0,2,1,0,2], // L1 richer pattern
+          [0,2,1,0],     // L2
+          [2,1,0,2,1],   // L3
+          [0,1,2,1],     // L4
         ];
         const lanes = patterns[level-1] || [1,0,2];
-        lanes.forEach((lane,i)=>{
-          timers.push(setTimeout(()=>spawnBlock({level, lane, startDelay:0}), baseDelay + i*1500));
-        });
+        lanes.forEach((lane,i)=> timers.push(setTimeout(()=>spawnBlock({level, lane}), baseDelay + i*1400)));
       }
 
       function scheduleLevel5(baseDelay){
-        // Rotating diagonals (visual), plus rushers
+        // Rotating diagonals similar to original
         const scene=q('a-scene');
         const makeRotDiag=(laneZ, delay, from, to)=>{
           const e=document.createElement('a-box');
@@ -210,14 +207,11 @@
           e.appendChild(anim);
           scene.appendChild(e);
         };
-        // match your cadence
         [12000,16000,23000,27000,33000,39000].forEach(d=>makeRotDiag(-3,d,'-500 250 -15','500 -248 12'));
         [11000,17000,22000,29000,35000,38000].forEach(d=>makeRotDiag( 3,d,'-500 250 15','500 -248 -12'));
 
-        // add rushers mixed in
-        [0,1,2,0,2,1].forEach((lane,i)=>{
-          timers.push(setTimeout(()=>spawnBlock({level:5,lane}), baseDelay + i*1400));
-        });
+        // Add rushers for level 5
+        [0,1,2,2,0,1].forEach((lane,i)=> timers.push(setTimeout(()=>spawnBlock({level:5,lane}), baseDelay + i*1200)));
       }
 
       /* ===== Music progression and gates ===== */
@@ -226,37 +220,37 @@
         target.addEventListener('start1', ()=>{
           ['#song2','#song3','#song4','#song5','#song6'].forEach(pause);
           play('#song'); scoring=true;
-        });
+          scheduleLevel(1,0);
+        }, {once:true});
         target.addEventListener('start2', ()=>{
           play('#hah1'); ['#song','#song2','#song4','#song5','#song6'].forEach(pause); play('#song3');
-          scheduleLevel(2, 0);
-        });
+          scheduleLevel(2,0);
+        }, {once:true});
         target.addEventListener('start3', ()=>{
           play('#hah2'); ['#song','#song2','#song3','#song5','#song6'].forEach(pause); play('#song4');
-          scheduleLevel(3, 0);
-        });
+          scheduleLevel(3,0);
+        }, {once:true});
         target.addEventListener('start4', ()=>{
           play('#hah3'); ['#song','#song2','#song3','#song4','#song6'].forEach(pause); play('#song5');
-          scheduleLevel(4, 0);
-        });
+          scheduleLevel(4,0);
+        }, {once:true});
         target.addEventListener('start5', ()=>{
           play('#hah1'); ['#song','#song2','#song3','#song4','#song5'].forEach(pause); play('#song6');
           boss=true; scheduleLevel5(0);
           setTimeout(()=>play('#hah1'),4500);
           setTimeout(()=>play('#hah2'),4500);
           setTimeout(()=>play('#hah3'),4500);
-          // Boss rise: from below, forward, then hover
+          // Boss rise: from below ground into field, then hover forward
           const bossE=q('#boss');
           if(bossE){
-            bossE.setAttribute('animation__rise','property: position; from: 0 -100 0; to: 30 0 0; dur: 2500; easing: easeOutCubic; startEvents: boss-rise');
+            bossE.setAttribute('position','0 -100 0');
+            bossE.setAttribute('animation__rise','property: position; to: 30 0 0; dur: 2500; easing: easeOutCubic; startEvents: boss-rise');
             bossE.emit('boss-rise');
           }
-        });
+        }, {once:true});
       }
 
       function startGates(){
-        // L1 spawns and music already wired in start1
-        scheduleLevel(1, 0);
         timers.push(setTimeout(()=>emit('start2',['#target']), 50000));
         timers.push(setTimeout(()=>emit('start3',['#target']),100000));
         timers.push(setTimeout(()=>emit('start4',['#target']),150000));
@@ -270,9 +264,7 @@
         boss=false;
         scoring=false;
         gameStarted=false;
-        // Reset HUD placement
-        q('#startcc')?.setAttribute('position','-0.20 0.02 -1.05');
-        // Score reset
+        // Score reset chain
         if (score>=50){ lastscore5=lastscore4; lastscore4=lastscore3; lastscore3=lastscore2; lastscore2=lastscore; lastscore=score; }
         setText('#lastscore', String(lastscore));
         setText('#lastscore2', String(lastscore2));
@@ -280,13 +272,13 @@
         setText('#lastscore4', String(lastscore4));
         setText('#lastscore5', String(lastscore5));
         score=0; setText('#scoreshow','0');
-        // Stop all music, optionally resume intro
+        // Stop all audio, resume intro if lobby
         ['#song','#song2','#song3','#song4','#song5','#song6','#hah1','#hah2','#hah3','#gameovers','#load'].forEach(pause);
         if (toLobby) play('#song2');
-        // Rebuild tunnel to pristine
+        // Rebuild tunnel pristine
         buildTunnel();
-        // Player position reset
-        const p=q('#player'); if (p) { p.object3D.position.set(0,0.8,0); const phys=p.components['runner-physics']; if (phys){ phys.targetLane=1; phys.velY=0; } }
+        // Reset player lane/position
+        const p=q('#player'); if (p) { p.object3D.position.set(0,0.8,0); const phys=p.components['runner-physics']; if (phys){ phys.targetLane=1; phys.velY=0; phys.refreshObstacles(); } }
       }
 
       /* ===== Boot ===== */
@@ -332,7 +324,7 @@
           });
         });
 
-        // Lobby / Return to Lobby: full reset + intro music
+        // Return to Lobby: full reset + intro music
         bindClick('#lobbybtn', ()=>{ play('#click2'); hardReset(true); });
         bindClick('#joinsm',   ()=>{ play('#click2'); });
         bindClick('#joinh',    ()=>{ play('#click2'); });
@@ -346,7 +338,7 @@
         // Boss laugh loop
         setInterval(()=>{ if(boss) play('#hah1'); },25000);
 
-        // Obstacles list hook
+        // Initialize obstacle list to avoid early tick error
         q('#player')?.components?.['runner-physics']?.refreshObstacles();
       });
     </script>
