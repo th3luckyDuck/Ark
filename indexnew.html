@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Ark — Browser edition (fixed obstacles + tunnel + boss)</title>
+    <title>Ark — Tunnel-only working build (blocks + boss fixed)</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <style>
       html, body { margin:0; padding:0; background:#000; }
@@ -47,7 +47,7 @@
           this.lanes = [-3,0,3];
           this.size = new THREE.Vector3(0.8,1.6,0.8);
           this.playerBox = new THREE.Box3();
-          this.obstacles = []; // ensure defined to avoid "not iterable"
+          this.obstacles = []; // iterable from start
           this.refreshObstacles = () => { this.obstacles = qa('.obstacle'); };
 
           window.addEventListener('keydown', e => {
@@ -98,6 +98,7 @@
 
       /* ===== Global game state ===== */
       let timers = [];
+      let intervals = [];
       let gameStarted = false;
       let scoring = false;
       let score = 0;
@@ -105,11 +106,20 @@
       let boss = false;
 
       function clearTimers(){ timers.forEach(t=>clearTimeout(t)); timers=[]; }
+      function clearIntervals(){ intervals.forEach(i=>clearInterval(i)); intervals=[]; }
       function clearObstacles(){ qa('.obstacle').forEach(e=>e.parentNode.removeChild(e)); q('#player')?.components?.['runner-physics']?.refreshObstacles(); }
 
-      /* ===== Tunnel builder (open line-of-sight down entire run) ===== */
+      /* ===== Tunnel builder (open line-of-sight down entire run; remove all other clutter) ===== */
       function buildTunnel(){
         const scene=q('a-scene');
+        // Remove ANY pre-existing non-essential entities except player, HUD, sounds, boss, target, reset, sky
+        qa('a-box:not(.keep), a-plane:not(.keep), a-entity.struct, a-obj-model').forEach(e=>{
+          const id=e.getAttribute('id')||'';
+          if (!['player','HUD','song','song2','song3','song4','song5','song6','hah1','hah2','hah3','begin3','gameovers','click','click2','lazer','boss','target','resetb','threeb','twob','oneb','enterArk','startcc','songT','scoreshow3','scoreshow','leftT','centerT','rightT','jumpb','lobbybtn','joinsm','joinh'].includes(id)){
+            e.parentNode.removeChild(e);
+          }
+        });
+
         let tunnel=q('#tunnel');
         if(!tunnel){ tunnel=document.createElement('a-entity'); tunnel.setAttribute('id','tunnel'); scene.appendChild(tunnel); }
         tunnel.innerHTML='';
@@ -117,22 +127,23 @@
 
         const makePanel=(pos,rot,scale,color)=>{
           const e=document.createElement('a-box');
+          e.classList.add('keep');
           e.setAttribute('position',pos);
           e.setAttribute('rotation',rot);
           e.setAttribute('scale',scale);
           e.setAttribute('material',`color: ${color}; side: double`);
           return e;
         };
-        // Corridor along X: player at x=0, extends to x=400
-        const floor = makePanel('200 0 0','-90 0 0','400 10 10','#1f4959');
-        const left  = makePanel('200 15 -10','0 0 0','400 30 1','#1f4959');
-        const right = makePanel('200 15 10','0 0 0','400 30 1','#1f4959');
-        const ceil  = makePanel('200 30 0','90 0 0','400 10 10','#1f4959');
+        // Corridor along X: player at x=0, extends to x=600 (long visible)
+        const floor = makePanel('300 0 0','-90 0 0','600 10 10','#1f4959');
+        const left  = makePanel('300 15 -10','0 0 0','600 30 1','#1f4959');
+        const right = makePanel('300 15 10','0 0 0','600 30 1','#1f4959');
+        const ceil  = makePanel('300 30 0','90 0 0','600 10 10','#1f4959');
 
         const anim=document.createElement('a-animation');
         anim.setAttribute('attribute','position');
         anim.setAttribute('begin','start1');
-        anim.setAttribute('to','450 0 0');
+        anim.setAttribute('to','700 0 0');
         anim.setAttribute('dur','100000');
         anim.setAttribute('easing','linear');
         anim.setAttribute('repeat','indefinite');
@@ -144,127 +155,128 @@
         tunnel.appendChild(anim);
       }
 
-      /* ===== Block spawner: fall from sky, then rush toward player ===== */
+      /* ===== Blocks: fall from sky, then rush toward player ===== */
       const colors = {1:'#ff0000',2:'#a041f4',3:'#f47c41',4:'#4158f4',5:'#0618a3'};
-      function spawnBlock({level=1, lane=0, startDelay=0, fallHeight=35, fallDur=1200, startX=350, rushDur=5000}){
+
+      function spawnBlock(level, lane) {
         const laneZ = [-3,0,3][lane];
-        const scene=q('a-scene');
-        const box=document.createElement('a-box');
+        const scene = q('a-scene');
+        const startX = 500; // far down tunnel
+        const fallH  = 35;
+
+        const box = document.createElement('a-box');
         box.classList.add('obstacle');
-        box.setAttribute('position', `${startX} ${fallHeight} ${laneZ}`);
-        box.setAttribute('scale','2 8 4');
+        box.setAttribute('position', `${startX} ${fallH} ${laneZ}`);
+        box.setAttribute('scale', '2 8 4');
         box.setAttribute('material', `color: ${colors[level]}; side: double; metalness:0; roughness:1`);
-        const fall=document.createElement('a-animation');
-        fall.setAttribute('attribute','position');
-        fall.setAttribute('from', `${startX} ${fallHeight} ${laneZ}`);
-        fall.setAttribute('to',   `${startX} 2 ${laneZ}`);
-        fall.setAttribute('dur', String(fallDur));
-        fall.setAttribute('delay', String(startDelay));
-        fall.setAttribute('easing','easeOutCubic');
-        const rush=document.createElement('a-animation');
-        rush.setAttribute('attribute','position');
-        rush.setAttribute('from', `${startX} 2 ${laneZ}`);
-        rush.setAttribute('to',   `-50 2 ${laneZ}`);
-        rush.setAttribute('dur', String(rushDur));
-        rush.setAttribute('delay', String(startDelay + fallDur));
-        rush.setAttribute('easing','linear');
-        box.appendChild(fall); box.appendChild(rush);
+
+        // fall
+        box.setAttribute('animation__fall', {
+          property: 'position',
+          from: `${startX} ${fallH} ${laneZ}`,
+          to:   `${startX} 2 ${laneZ}`,
+          dur:  800,
+          easing: 'easeOutCubic'
+        });
+
+        // rush
+        box.setAttribute('animation__rush', {
+          property: 'position',
+          from: `${startX} 2 ${laneZ}`,
+          to:   `-60 2 ${laneZ}`,
+          dur:  4500,
+          delay: 800,
+          easing: 'linear'
+        });
+
         scene.appendChild(box);
         q('#player')?.components?.['runner-physics']?.refreshObstacles();
       }
 
-      /* ===== Level scripts (cadence approximated from original) ===== */
-      function scheduleLevel(level, baseDelay){
-        const patterns = [
-          [1,0,2,1,0,2], // L1 richer pattern
-          [0,2,1,0],     // L2
-          [2,1,0,2,1],   // L3
-          [0,1,2,1],     // L4
-        ];
-        const lanes = patterns[level-1] || [1,0,2];
-        lanes.forEach((lane,i)=> timers.push(setTimeout(()=>spawnBlock({level, lane}), baseDelay + i*1400)));
+      function scheduleBlocks(level, secs=25, rateMs=1700){
+        const start = Date.now();
+        const iv = setInterval(()=>{
+          if (!scoring){ clearInterval(iv); return; }
+          const lane = Math.floor(Math.random()*3);
+          spawnBlock(level, lane);
+          if (Date.now() - start > secs*1000) { clearInterval(iv); }
+        }, rateMs);
+        intervals.push(iv);
       }
 
-      function scheduleLevel5(baseDelay){
-        // Rotating diagonals similar to original
-        const scene=q('a-scene');
-        const makeRotDiag=(laneZ, delay, from, to)=>{
-          const e=document.createElement('a-box');
-          e.classList.add('obstacle');
-          e.setAttribute('position', `0 -500 ${laneZ}`);
-          e.setAttribute('scale','3.25 8 3.25');
-          e.setAttribute('rotation','0 0 65');
-          e.setAttribute('material','color: #0618a3; side: double; metalness:0; roughness:1');
-          const anim=document.createElement('a-animation');
-          anim.setAttribute('attribute','position');
-          anim.setAttribute('begin','start5');
-          anim.setAttribute('delay', String(delay));
-          anim.setAttribute('dur','10000');
-          anim.setAttribute('easing','linear');
-          anim.setAttribute('repeat','indefinite');
-          anim.setAttribute('from', from);
-          anim.setAttribute('to', to);
-          e.appendChild(anim);
-          scene.appendChild(e);
-        };
-        [12000,16000,23000,27000,33000,39000].forEach(d=>makeRotDiag(-3,d,'-500 250 -15','500 -248 12'));
-        [11000,17000,22000,29000,35000,38000].forEach(d=>makeRotDiag( 3,d,'-500 250 15','500 -248 -12'));
-
-        // Add rushers for level 5
-        [0,1,2,2,0,1].forEach((lane,i)=> timers.push(setTimeout(()=>spawnBlock({level:5,lane}), baseDelay + i*1200)));
-      }
-
-      /* ===== Music progression and gates ===== */
-      function wireMusic(){
+      /* ===== Level progression and music ===== */
+      function wireMusicAndGates(){
         const target=q('#target'); if(!target) return;
+
         target.addEventListener('start1', ()=>{
           ['#song2','#song3','#song4','#song5','#song6'].forEach(pause);
-          play('#song'); scoring=true;
-          scheduleLevel(1,0);
+          play('#song');
+          scoring=true;
+          scheduleBlocks(1, 45, 1500);
         }, {once:true});
+
         target.addEventListener('start2', ()=>{
-          play('#hah1'); ['#song','#song2','#song4','#song5','#song6'].forEach(pause); play('#song3');
-          scheduleLevel(2,0);
+          play('#hah1');
+          ['#song','#song2','#song4','#song5','#song6'].forEach(pause);
+          play('#song3');
+          scheduleBlocks(2, 45, 1400);
         }, {once:true});
+
         target.addEventListener('start3', ()=>{
-          play('#hah2'); ['#song','#song2','#song3','#song5','#song6'].forEach(pause); play('#song4');
-          scheduleLevel(3,0);
+          play('#hah2');
+          ['#song','#song2','#song3','#song5','#song6'].forEach(pause);
+          play('#song4');
+          scheduleBlocks(3, 45, 1350);
         }, {once:true});
+
         target.addEventListener('start4', ()=>{
-          play('#hah3'); ['#song','#song2','#song3','#song4','#song6'].forEach(pause); play('#song5');
-          scheduleLevel(4,0);
+          play('#hah3');
+          ['#song','#song2','#song3','#song4','#song6'].forEach(pause);
+          play('#song5');
+          scheduleBlocks(4, 45, 1300);
         }, {once:true});
+
         target.addEventListener('start5', ()=>{
-          play('#hah1'); ['#song','#song2','#song3','#song4','#song5'].forEach(pause); play('#song6');
-          boss=true; scheduleLevel5(0);
+          play('#hah1');
+          ['#song','#song2','#song3','#song4','#song5'].forEach(pause);
+          play('#song6');
+          boss = true;
+          scheduleBlocks(5, 60, 1200);
+
+          // Boss becomes visible and rises from far down tunnel, then approaches slightly
+          const bossE = q('#boss');
+          if (bossE){
+            bossE.setAttribute('visible','true');
+            bossE.setAttribute('position','500 -60 0');
+            bossE.setAttribute('animation__rise','property: position; from: 500 -60 0; to: 300 0 0; dur: 2500; easing: easeOutCubic; startEvents: boss-rise');
+            bossE.setAttribute('animation__approach','property: position; to: 200 0 0; dur: 3000; delay: 2500; easing: easeInOutCubic; startEvents: boss-approach');
+            bossE.emit('boss-rise');
+            bossE.emit('boss-approach');
+          }
+
+          // extra laughs sync
           setTimeout(()=>play('#hah1'),4500);
           setTimeout(()=>play('#hah2'),4500);
           setTimeout(()=>play('#hah3'),4500);
-          // Boss rise: from below ground into field, then hover forward
-          const bossE=q('#boss');
-          if(bossE){
-            bossE.setAttribute('position','0 -100 0');
-            bossE.setAttribute('animation__rise','property: position; to: 30 0 0; dur: 2500; easing: easeOutCubic; startEvents: boss-rise');
-            bossE.emit('boss-rise');
-          }
         }, {once:true});
-      }
 
-      function startGates(){
+        // Timers for gates (same cadence you used)
         timers.push(setTimeout(()=>emit('start2',['#target']), 50000));
         timers.push(setTimeout(()=>emit('start3',['#target']),100000));
         timers.push(setTimeout(()=>emit('start4',['#target']),150000));
         timers.push(setTimeout(()=>emit('start5',['#target']),200000));
       }
 
-      /* ===== Reset + Return to Lobby ===== */
+      /* ===== Reset and Return to Lobby ===== */
       function hardReset(toLobby=false){
         clearTimers();
+        clearIntervals();
         clearObstacles();
         boss=false;
         scoring=false;
         gameStarted=false;
-        // Score reset chain
+
+        // Score roll
         if (score>=50){ lastscore5=lastscore4; lastscore4=lastscore3; lastscore3=lastscore2; lastscore2=lastscore; lastscore=score; }
         setText('#lastscore', String(lastscore));
         setText('#lastscore2', String(lastscore2));
@@ -272,11 +284,17 @@
         setText('#lastscore4', String(lastscore4));
         setText('#lastscore5', String(lastscore5));
         score=0; setText('#scoreshow','0');
-        // Stop all audio, resume intro if lobby
+
+        // Hide boss again
+        const bossE = q('#boss'); if (bossE){ bossE.setAttribute('visible','false'); bossE.setAttribute('position','500 -60 0'); }
+
+        // Audio states
         ['#song','#song2','#song3','#song4','#song5','#song6','#hah1','#hah2','#hah3','#gameovers','#load'].forEach(pause);
         if (toLobby) play('#song2');
-        // Rebuild tunnel pristine
+
+        // Rebuild tunnel clean
         buildTunnel();
+
         // Reset player lane/position
         const p=q('#player'); if (p) { p.object3D.position.set(0,0.8,0); const phys=p.components['runner-physics']; if (phys){ phys.targetLane=1; phys.velY=0; phys.refreshObstacles(); } }
       }
@@ -294,10 +312,10 @@
         // Start game
         bindClick('#startcc', ()=>{
           play('#begin3');
-          emit('start1',['#target','#tunnel','#floor','#left','#right']);
-          wireMusic();
-          startGates();
+          emit('start1',['#target','#tunnel']);
+          wireMusicAndGates();
           scoring=true; gameStarted=true;
+
           // countdown
           const tb=q('#threeb'), tw=q('#twob'), ob=q('#oneb');
           tb.setAttribute('position','0 1 -1.62'); setTimeout(()=>tb.setAttribute('position','0 -100 0'),1000);
@@ -324,7 +342,7 @@
           });
         });
 
-        // Return to Lobby: full reset + intro music
+        // Return to Lobby: hard reset + intro
         bindClick('#lobbybtn', ()=>{ play('#click2'); hardReset(true); });
         bindClick('#joinsm',   ()=>{ play('#click2'); });
         bindClick('#joinh',    ()=>{ play('#click2'); });
@@ -333,12 +351,12 @@
         bindClick('#resetb', ()=>{ hardReset(false); });
 
         // Scoring tick
-        setInterval(()=>{ if (scoring){ score+=10; setText('#scoreshow', String(score)); } },2000);
+        intervals.push(setInterval(()=>{ if (scoring){ score+=10; setText('#scoreshow', String(score)); } },2000));
 
         // Boss laugh loop
-        setInterval(()=>{ if(boss) play('#hah1'); },25000);
+        intervals.push(setInterval(()=>{ if(boss) play('#hah1'); },25000));
 
-        // Initialize obstacle list to avoid early tick error
+        // Initial obstacles list to avoid early tick error
         q('#player')?.components?.['runner-physics']?.refreshObstacles();
       });
     </script>
@@ -352,16 +370,11 @@
         <img id="rightp" src="right.jpg">
         <img id="jumpp" src="jump.jpg">
         <img id="mutep" src="mute.jpg">
-        <img id="arkwall" src="arkwall.jpg">
-        <img id="credit" src="credit.jpg">
         <img id="startp" src="start.jpg">
         <img id="resetp" src="reset.jpg">
-        <img id="joinp" src="join.jpg">
         <img id="lobbyp" src="lobby.jpg">
-        <img id="scorep" src="score.jpg">
-        <img id="scoreboardp" src="scoreboard.jpg">
         <img id="joinsmallp" src="joinsmall.jpg">
-        <img id="lobbysmallp" src="lobbysmall.jpg">
+        <img id="joinp" src="join.jpg">
         <img id="p1" src="1.jpg">
         <img id="p2" src="2.jpg">
         <img id="p3" src="3.jpg">
@@ -379,19 +392,18 @@
             <a-plane id="startcc" src="#startp" width="0.7" height="0.22" position="-0.20 0.02 -1.05" material="side: double" class="ui"></a-plane>
             <!-- Mute -->
             <a-plane id="songT" src="#mutep" width="0.35" height="0.2" position="0.55 0.02 -1.05" material="side: double" class="ui"></a-plane>
-            <!-- Score card + text -->
-            <a-plane id="scoreshow3" src="#scorep" width="0.65" height="0.22" position="0.95 0.02 -1.05" material="side: double" class="ui"></a-plane>
+            <!-- Score -->
             <a-entity id="scoreshow" position="1.05 0.02 -1.04" text="value: 0; color: #6FF3E8; align: left; width: 6"></a-entity>
             <!-- Lane buttons -->
-            <a-plane id="leftT" src="#leftp" width="0.25" height="0.18" position="-1.05 -0.22 -1.05" material="side: double" class="ui"></a-plane>
+            <a-plane id="leftT"   src="#leftp" width="0.25" height="0.18" position="-1.05 -0.22 -1.05" material="side: double" class="ui"></a-plane>
             <a-plane id="centerT" src="#centerp" width="0.25" height="0.18" position="-0.75 -0.22 -1.05" material="side: double" class="ui"></a-plane>
-            <a-plane id="rightT" src="#rightp" width="0.25" height="0.18" position="-0.45 -0.22 -1.05" material="side: double" class="ui"></a-plane>
+            <a-plane id="rightT"  src="#rightp" width="0.25" height="0.18" position="-0.45 -0.22 -1.05" material="side: double" class="ui"></a-plane>
             <!-- Jump -->
             <a-plane id="jumpb" src="#jumpp" width="0.35" height="0.2" position="0.20 -0.22 -1.05" material="side: double" class="ui"></a-plane>
             <!-- Lobby / Join -->
             <a-plane id="lobbybtn" src="#lobbyp" width="0.55" height="0.18" position="0.55 -0.22 -1.05" material="side: double" class="ui"></a-plane>
-            <a-plane id="joinsm" src="#joinsmallp" width="0.24" height="0.18" position="0.95 -0.22 -1.05" material="side: double" class="ui"></a-plane>
-            <a-plane id="joinh" src="#joinp" width="0.7" height="0.2" position="0.8 0.12 -1.05" material="side: double" class="ui"></a-plane>
+            <a-plane id="joinsm"   src="#joinsmallp" width="0.24" height="0.18" position="0.95 -0.22 -1.05" material="side: double" class="ui"></a-plane>
+            <a-plane id="joinh"    src="#joinp" width="0.7" height="0.2" position="0.8 0.12 -1.05" material="side: double" class="ui"></a-plane>
           </a-entity>
         </a-entity>
       </a-entity>
@@ -399,30 +411,13 @@
       <!-- Lighting -->
       <a-light type="directional" intensity="1.6" position="150 25 15"></a-light>
 
-      <!-- Ground and side planes (visible both sides) -->
-      <a-plane id="floor" position="0 0 0" rotation="-90 0 0" width="1500" height="10" material="color:#5ed4ff; side: double"></a-plane>
-      <a-plane id="left"  position="0 22 -13" rotation="-20 0 0" width="1500" height="50" material="color:#5ed4ff; side: double"></a-plane>
-      <a-plane id="right" position="0 22 13" rotation="-160 0 0" width="1500" height="50" material="color:#5ed4ff; side: double"></a-plane>
-
-      <!-- Rebuilt tunnel -->
+      <!-- Long, open tunnel -->
       <a-entity id="tunnel"></a-entity>
 
       <!-- Countdown -->
       <a-plane id="threeb" src="#p3" position="0 -100 -1.62" width="1" height="1" material="side: double"></a-plane>
       <a-plane id="twob"   src="#p2" position="0 -100 -1.62" width="1" height="1" material="side: double"></a-plane>
       <a-plane id="oneb"   src="#p1" position="0 -100 -1.62" width="1" height="1" material="side: double"></a-plane>
-
-      <!-- Scoreboard -->
-      <a-entity id="cube1" position="10 0 0">
-        <a-plane width="6" height="4.5" position="0 13 -4.9" material="src:#arkwall; side: double"></a-plane>
-        <a-plane width="1.25" height="2" position="0 12 4.9" rotation="0 180 0" material="src:#credit; side: double"></a-plane>
-        <a-plane width="8" height="8" position="-14.9 15.5 0" rotation="0 90 0" material="src:#scoreboardp; side: double"></a-plane>
-        <a-entity id="lastscore"  position="-14.8 16.75 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
-        <a-entity id="lastscore2" position="-14.8 15.75 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
-        <a-entity id="lastscore3" position="-14.8 14.75 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
-        <a-entity id="lastscore4" position="-14.8 13.75 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
-        <a-entity id="lastscore5" position="-14.8 12.75 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
-      </a-entity>
 
       <!-- Sounds -->
       <a-entity id="song"   sound="src:url(arktheme.wav);   loop:true; autoplay:false; volume:0.2"></a-entity>
@@ -441,8 +436,11 @@
       <a-entity id="click2" sound="src:url(click.wav);  loop:false; autoplay:false; volume:0.3"></a-entity>
       <a-entity id="lazer"  sound="src:url(lazer.wav);  loop:false; autoplay:false; volume:0.3"></a-entity>
 
-      <!-- Boss (rise animation recreated) -->
-      <a-entity id="boss" position="0 -100 0" rotation="0 90 0" scale="50 50 50" obj-model="obj: #run-obj" material="color:#cccccc; side: double"></a-entity>
+      <!-- Boss (invisible until level 5; rises from distance) -->
+      <a-entity id="boss" position="500 -60 0" rotation="0 90 0" scale="50 50 50"
+                obj-model="obj: #run-obj"
+                material="color:#cccccc; side: double"
+                visible="false"></a-entity>
 
       <!-- Target for gate events -->
       <a-entity id="target"></a-entity>
