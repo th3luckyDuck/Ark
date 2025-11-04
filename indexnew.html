@@ -30,23 +30,32 @@
         }
       });
 
-      /* ===== HUD anchor (in front of camera along +X, facing player) ===== */
+      /* ===== HUD anchor (locked to camera, always in view) ===== */
       AFRAME.registerComponent('hud-anchor', {
         schema: {
-          offset: {type:'vec3', default: {x: 2.2, y: -0.3, z: 0}}, // slightly ahead along +X
-          tilt: {type:'number', default: 0}
+          distance: {type:'number', default: 2.0},
+          offset:   {type:'vec3',  default: {x: 0, y: -0.3, z: 0}},
+          tilt:     {type:'number', default: 0}
         },
         tick() {
           const cam = this.el.sceneEl.camera?.el;
           if (!cam) return;
-          const camPos = cam.object3D.position;
-          const camRot = cam.object3D.rotation;
+          const camObj = cam.object3D;
           const o3 = this.el.object3D;
 
-          // Place HUD a bit in front of camera toward +X in world space
-          o3.position.set(camPos.x + this.data.offset.x, camPos.y + this.data.offset.y, camPos.z + this.data.offset.z);
-          // Face camera: since camera looks +X (yaw 90°), rotate HUD to -90° yaw so its front faces camera
-          o3.rotation.set(THREE.MathUtils.degToRad(this.data.tilt), THREE.MathUtils.degToRad(-90), 0);
+          // Compute a point in front of the camera based on its forward vector
+          const forward = new THREE.Vector3(0,0,-1).applyQuaternion(camObj.quaternion).normalize();
+          const pos = new THREE.Vector3().copy(camObj.position)
+                         .add(new THREE.Vector3().copy(forward).multiplyScalar(this.data.distance))
+                         .add(new THREE.Vector3(this.data.offset.x, this.data.offset.y, this.data.offset.z));
+
+          o3.position.copy(pos);
+
+          // Face the camera (billboard), with optional tilt
+          o3.quaternion.copy(camObj.quaternion);
+          // Rotate 180° around Y so the HUD faces the player, not away
+          o3.rotateY(Math.PI);
+          if (this.data.tilt) o3.rotateX(THREE.MathUtils.degToRad(this.data.tilt));
         }
       });
 
@@ -62,7 +71,7 @@
           this.obstacles = [];
           this.refreshObstacles = () => { this.obstacles = qa('.obstacle'); };
 
-          // Anchor player at origin looking down +X
+          // Anchor player at origin
           const p = this.el.object3D.position;
           p.set(0, this.data.groundY + this.size.y/2, 0);
 
@@ -82,7 +91,7 @@
           const tz=this.lanes[this.targetLane];
           pos.z += (tz - pos.z) * Math.min(1, d*12);
 
-          // Clamp Z to walls (open roof, but side walls at ±10)
+          // Clamp Z to side walls (±10)
           pos.z = Math.max(-9.5, Math.min(9.5, pos.z));
 
           // Gravity
@@ -91,13 +100,13 @@
           const groundY = this.data.groundY + this.size.y/2; // floor at y=0
           if(pos.y<=groundY){ pos.y=groundY; this.velY=0; this.grounded=true; }
 
-          // Player AABB (for camera hit logic)
+          // Player AABB
           const half = new THREE.Vector3(this.size.x/2, this.size.y/2, this.size.z/2);
           const min = new THREE.Vector3().copy(pos).sub(half);
           const max = new THREE.Vector3().copy(pos).add(half);
           this.playerBox.min.copy(min); this.playerBox.max.copy(max);
 
-          // Collisions with blocks: hard reset game immediately
+          // Collisions with blocks: hard reset
           const obs = Array.isArray(this.obstacles) ? this.obstacles : [];
           for(const e of obs){
             const o=e.object3D;
@@ -131,7 +140,7 @@
       function clearIntervals(){ intervals.forEach(i=>clearInterval(i)); intervals=[]; }
       function clearObstacles(){ qa('.obstacle').forEach(e=>e.parentNode.removeChild(e)); q('#player')?.components?.['runner-physics']?.refreshObstacles(); }
 
-      /* ===== Build long tunnel (open roof, walls + floor only; visible all sides) ===== */
+      /* ===== Build long tunnel (open roof; extends far past player both directions) ===== */
       function buildTunnel(){
         const scene=q('a-scene');
         let tunnel=q('#tunnel');
@@ -148,24 +157,29 @@
           return e;
         };
 
-        // Floor at y=0; open roof; extends far down +X
-        const floor = mk('400 0 0','-90 0 0','800 10 10','#1f4959');
-        const left  = mk('400 15 -10','0 0 0','800 30 1','#1f4959');
-        const right = mk('400 15 10','0 0 0','800 30 1','#1f4959');
+        // Player should feel centered inside a long tunnel:
+        // Length 2000 along X, centered around the player at X=0; open roof (no top)
+        const length = 2000;
+        const half   = length/2;
 
-        // Motion illusion: shift tunnel forward slowly (visual only)
-        const anim=document.createElement('a-animation');
-        anim.setAttribute('attribute','position');
-        anim.setAttribute('begin','start1');
-        anim.setAttribute('to','900 0 0');
-        anim.setAttribute('dur','100000');
-        anim.setAttribute('easing','linear');
-        anim.setAttribute('repeat','indefinite');
+        // Floor at y=0 (thin height), walls at z=±10
+        const floor = mk('0 0 0','-90 0 0',`${length} 10 10`,'#1f4959');
+        const left  = mk('0 15 -10','0 0 0', `${length} 30 1`,'#1f4959');
+        const right = mk('0 15 10','0 0 0',  `${length} 30 1`,'#1f4959');
 
+        // Gentle motion illusion: slide the tunnel slowly along +X and loop
         tunnel.appendChild(floor);
         tunnel.appendChild(left);
         tunnel.appendChild(right);
-        tunnel.appendChild(anim);
+
+        tunnel.setAttribute('animation__shift', {
+          property: 'position',
+          to: `${half} 0 0`,
+          dir: 'alternate',
+          dur: 100000,
+          easing: 'linear',
+          loop: true
+        });
       }
 
       /* ===== Blocks: fall then rush at player down the tunnel ===== */
@@ -174,12 +188,12 @@
       function spawnBlock(level, lane) {
         const laneZ = [-3,0,3][lane];
         const scene = q('a-scene');
-        const startX = 700; // far down the tunnel
+        const startX = 700; // far down the +X direction
         const fallH  = 35;
 
         const box = document.createElement('a-box');
         box.classList.add('obstacle');
-        box.setAttribute('geometry', 'primitive: box; width: 2; height: 8; depth: 4'); // ensure geometry values exist
+        box.setAttribute('geometry', 'primitive: box; width: 2; height: 8; depth: 4');
         box.setAttribute('position', `${startX} ${fallH} ${laneZ}`);
         box.setAttribute('material', `color: ${colors[level]}; side: double; metalness:0; roughness:1`);
 
@@ -218,7 +232,7 @@
 
       /* ===== Music + gates ===== */
       function wireMusicAndGates(){
-        if (startWired) return; // prevent double wiring causing first-click anomaly
+        if (startWired) return;
         startWired = true;
 
         const target=q('#target'); if(!target) return;
@@ -236,6 +250,7 @@
           ['#song','#song2','#song4','#song5','#song6'].forEach(pause);
           play('#song3');
           scheduleBlocks(2, 45, 1400);
+          q('#player')?.components?.['runner-physics']?.refreshObstacles();
         }, {once:true});
 
         target.addEventListener('start3', ()=>{
@@ -243,6 +258,7 @@
           ['#song','#song2','#song3','#song5','#song6'].forEach(pause);
           play('#song4');
           scheduleBlocks(3, 45, 1350);
+          q('#player')?.components?.['runner-physics']?.refreshObstacles();
         }, {once:true});
 
         target.addEventListener('start4', ()=>{
@@ -250,6 +266,7 @@
           ['#song','#song2','#song3','#song4','#song6'].forEach(pause);
           play('#song5');
           scheduleBlocks(4, 45, 1300);
+          q('#player')?.components?.['runner-physics']?.refreshObstacles();
         }, {once:true});
 
         target.addEventListener('start5', ()=>{
@@ -283,9 +300,14 @@
       }
 
       function showCountdown(){
-        // Place countdown planes in front of player, in tunnel, facing player (+X direction)
-        const basePos = new THREE.Vector3(2, 1, 0); // slightly ahead on +X, centered lane
-        const rot = '0 -90 0'; // face +X toward player
+        // Always place just in front of camera, facing the player
+        const cam = q('#playerCam')?.object3D; if (!cam) return;
+        const forward = new THREE.Vector3(0,0,-1).applyQuaternion(cam.quaternion).normalize();
+        const basePos = new THREE.Vector3().copy(cam.position).add(forward.multiplyScalar(2)).add(new THREE.Vector3(0,1,0));
+
+        const rotY = (new THREE.Euler().setFromQuaternion(cam.quaternion)).y + Math.PI; // face camera
+        const rot = `0 ${THREE.MathUtils.radToDeg(rotY)} 0`;
+
         const three=q('#threeb'), two=q('#twob'), one=q('#oneb');
         if (three && two && one){
           three.setAttribute('position', `${basePos.x} ${basePos.y} ${basePos.z}`);
@@ -306,7 +328,7 @@
         boss=false;
         scoring=false;
         gameStarted=false;
-        startWired=false; // allow wiring again after reset
+        startWired=false;
 
         if (score>=50){ lastscore5=lastscore4; lastscore4=lastscore3; lastscore3=lastscore2; lastscore2=lastscore; lastscore=score; }
         setText('#lastscore', String(lastscore));
@@ -324,11 +346,12 @@
         buildTunnel();
 
         const p=q('#player'); if (p) {
-          // Face down the tunnel (+X)
-          p.setAttribute('position','0 0.8 0'); // floor is y=0; player feet center at y≈0.8
+          // Start in the middle of the tunnel
+          p.setAttribute('position','0 0.8 0');
           const cam = q('#playerCam');
           if (cam) {
-            cam.object3D.rotation.set(0, THREE.MathUtils.degToRad(90), 0); // look +X
+            // Turn 90° to the right from default -Z to face +X (toward tunnel depth)
+            cam.object3D.rotation.set(0, THREE.MathUtils.degToRad(-90), 0);
           }
           const phys=p.components['runner-physics'];
           if (phys){ phys.targetLane=1; phys.velY=0; phys.refreshObstacles(); }
@@ -345,14 +368,13 @@
           play('#song2'); play('#click');
         });
 
-        // Start game (fix double-click anomaly by wiring before emit)
+        // Start game (wire before emit)
         bindClick('#startcc', ()=>{
-          if (gameStarted) return; // ignore accidental re-clicks while running
-          wireMusicAndGates();     // ensure listeners are bound once
+          if (gameStarted) return;
+          wireMusicAndGates();
           play('#begin3');
           emit('start1',['#target','#tunnel']);
-          scoring=true; gameStarted=true;
-          showCountdown();
+          gameStarted=true;
         });
 
         // Lane buttons
@@ -363,14 +385,15 @@
         // Jump
         bindClick('#jumpb', ()=>{ const p=q('#player'); p?.components?.['runner-physics']?.jump(); });
 
-        // Mute toggle
+        // Mute toggle (flip only volume, preserve all other attributes)
         bindClick('#songT', ()=>{
           const ids=['#song','#song2','#song3','#song4','#song5','#song6','#begin3','#gameovers','#lazer','#click','#click2','#hah1','#hah2','#hah3'];
           const muted = (q('#song').components?.sound?.data?.volume===0);
           ids.forEach(sel=>{
             const el=q(sel); if(!el?.components?.sound) return;
-            const d=el.components.sound.data;
-            el.setAttribute('sound', `src:${d.src}; loop:${d.loop}; autoplay:${d.autoplay}; volume:${muted ? (d.volume||0.3) : 0}`);
+            const cfg = el.getAttribute('sound') || {};
+            cfg.volume = muted ? (cfg.volume ?? 0.3) : 0;
+            el.setAttribute('sound', cfg);
           });
         });
 
@@ -391,13 +414,12 @@
         // Initialize obstacle list
         q('#player')?.components?.['runner-physics']?.refreshObstacles();
 
-        // Ensure player faces down tunnel at start
+        // Ensure player faces down tunnel at start (90° right from default)
         const cam=q('#playerCam');
-        if (cam) { cam.object3D.rotation.set(0, THREE.MathUtils.degToRad(90), 0); }
+        if (cam) { cam.object3D.rotation.set(0, THREE.MathUtils.degToRad(-90), 0); }
       });
     </script>
   </head>
-
   <body>
     <a-scene renderer="colorManagement: true; physicallyCorrectLights: true" background="color: #000">
       <a-assets>
@@ -424,7 +446,7 @@
       <a-light type="directional" intensity="1.4" position="150 25 15"></a-light>
       <a-light type="ambient" color="#ffffff" intensity="0.7"></a-light>
 
-      <!-- Player anchored; camera faces down +X; HUD in front of camera and rotated toward player -->
+      <!-- Player anchored; camera turned 90° right to face +X; HUD locked to camera -->
       <a-entity id="player" position="0 0.8 0" runner-physics>
         <a-entity id="playerCam" camera look-controls cursor-whitelist>
 
@@ -446,7 +468,7 @@
             <a-entity id="lazer"  sound="src:url(lazer.wav);  loop:false; autoplay:false; volume:0.3"></a-entity>
           </a-entity>
 
-          <!-- HUD -->
+          <!-- HUD (locked to camera; always in front) -->
           <a-entity id="HUD" hud-anchor>
             <!-- Intro unlock (text button) -->
             <a-plane id="enterArk" width="0.7" height="0.2" material="color:#2c3e50; side: double" class="ui"></a-plane>
@@ -477,7 +499,7 @@
         </a-entity>
       </a-entity>
 
-      <!-- Tunnel (open roof) -->
+      <!-- Tunnel (open roof; long both directions so player is centered) -->
       <a-entity id="tunnel"></a-entity>
 
       <!-- Countdown images (script positions them to face the player) -->
