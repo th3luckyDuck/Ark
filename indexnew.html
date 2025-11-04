@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Ark — Open-roof 3-piece tunnel, bottom-centered HUD, full functionality</title>
+    <title>Ark — Open-roof 3-piece tunnel, HUD fixed to camera, full functionality</title>
 
     <!-- A-Frame core -->
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
@@ -30,35 +30,7 @@
         }
       });
 
-      /* ===== HUD anchor: bottom-centered row, locked to camera, always in front ===== */
-      AFRAME.registerComponent('hud-anchor', {
-        schema: {
-          distance: {type:'number', default: 1.8},   // how far in front of camera
-          vertical: {type:'number', default: -0.8},  // drop toward bottom of view
-          scale:    {type:'number', default: 1.0}
-        },
-        tick() {
-          const cam = this.el.sceneEl.camera?.el;
-          if (!cam) return;
-          const camObj = cam.object3D;
-
-          // Position in front of camera along its forward vector, then shift down
-          const forward = new THREE.Vector3(0,0,-1).applyQuaternion(camObj.quaternion).normalize();
-          const pos = new THREE.Vector3().copy(camObj.position)
-            .add(forward.multiplyScalar(this.data.distance))
-            .add(new THREE.Vector3(0, this.data.vertical, 0));
-
-          const o3 = this.el.object3D;
-          o3.position.copy(pos);
-
-          // Face the camera (billboard). Do NOT flip 180° to avoid rendering backside.
-          o3.quaternion.copy(camObj.quaternion);
-
-          o3.scale.setScalar(this.data.scale);
-        }
-      });
-
-      /* ===== Runner physics (lanes, jump, collisions) ===== */
+      /* ===== Runner physics (lanes, jump, collisions; ground at y=0) ===== */
       AFRAME.registerComponent('runner-physics', {
         schema: { gravity:{default:-9.8}, jumpVelocity:{default:6}, groundY:{default:0} },
         init() {
@@ -70,9 +42,8 @@
           this.obstacles = [];
           this.refreshObstacles = () => { this.obstacles = qa('.obstacle'); };
 
-          // Player at origin
-          const p = this.el.object3D.position;
-          p.set(0, this.data.groundY + this.size.y/2, 0);
+          // Player stands with feet at y=0 (center at size.y/2)
+          this.el.object3D.position.set(0, this.data.groundY + this.size.y/2, 0);
 
           window.addEventListener('keydown', e => {
             const k = e.key;
@@ -90,7 +61,7 @@
           const tz=this.lanes[this.targetLane];
           pos.z += (tz - pos.z) * Math.min(1, d*12);
 
-          // Clamp Z to side walls
+          // Clamp Z to side walls (±10)
           pos.z = Math.max(-9.5, Math.min(9.5, pos.z));
 
           // Gravity
@@ -108,18 +79,12 @@
           // Collisions with blocks: hard reset
           const obs = Array.isArray(this.obstacles) ? this.obstacles : [];
           for(const e of obs){
-            const o=e.object3D;
-            const wp=new THREE.Vector3(); o.getWorldPosition(wp);
+            const wp=new THREE.Vector3(); e.object3D.getWorldPosition(wp);
             const geo=e.getAttribute('geometry')||{};
             const sx=geo.width||2, sy=geo.height||8, sz=geo.depth||4;
             const hb=new THREE.Vector3(sx/2,sy/2,sz/2);
-            const bmin=new THREE.Vector3().copy(wp).sub(hb);
-            const bmax=new THREE.Vector3().copy(wp).add(hb);
-            const box=new THREE.Box3(bmin,bmax);
-            if(this.playerBox.intersectsBox(box)){
-              hardReset(false);
-              break;
-            }
+            const box=new THREE.Box3(wp.clone().sub(hb), wp.clone().add(hb));
+            if(this.playerBox.intersectsBox(box)){ hardReset(false); break; }
           }
         }
       });
@@ -138,34 +103,32 @@
       function clearIntervals(){ intervals.forEach(i=>clearInterval(i)); intervals=[]; }
       function clearObstacles(){ qa('.obstacle').forEach(e=>e.parentNode.removeChild(e)); q('#player')?.components?.['runner-physics']?.refreshObstacles(); }
 
-      /* ===== Build tunnel (strict 3-piece: floor + left wall + right wall; NO ROOF) ===== */
+      /* ===== Build tunnel (strict 3-piece; floor top at y=0; NO ROOF) ===== */
       function buildTunnel(){
-        // Remove any previous tunnel and any stray geometry that could look like a roof
-        ['#tunnel'].forEach(id => { const el=q(id); if (el) el.remove(); });
+        // Remove any previous tunnel
+        const old=q('#tunnel'); if(old) old.remove();
 
         const scene=q('a-scene');
-
-        // Create fresh tunnel entity
         const tunnel=document.createElement('a-entity');
         tunnel.setAttribute('id','tunnel');
         tunnel.setAttribute('position','0 0 0');
         scene.appendChild(tunnel);
 
-        // Dimensions: player centered in a long tunnel
-        const length = 2400;  // extend farther in +X and -X
+        // Dimensions
+        const length = 2400;    // extends far in +X and -X
         const wallHeight = 30;
-        const wallZ = 10;     // walls at ±10 on Z
-        const floorHeight = 1;
+        const wallZ = 10;       // walls at ±10 on Z
+        const floorHeight = 1;  // thin floor
 
-        // Floor: axis-aligned box, no rotation, thin height at y = floorHeight/2
+        // Floor: top surface at y=0 ⇒ center at y = -floorHeight/2
         const floor=document.createElement('a-box');
-        floor.setAttribute('position', `0 ${floorHeight/2} 0`);
+        floor.setAttribute('position', `0 ${-floorHeight/2} 0`);
         floor.setAttribute('width', `${length}`);
         floor.setAttribute('height', `${floorHeight}`);
         floor.setAttribute('depth', `20`);
         floor.setAttribute('material', 'color:#1f4959; side:double');
 
-        // Left wall: tall, thin depth, at z = -wallZ
+        // Left wall
         const left=document.createElement('a-box');
         left.setAttribute('position', `0 ${wallHeight/2} ${-wallZ}`);
         left.setAttribute('width', `${length}`);
@@ -173,7 +136,7 @@
         left.setAttribute('depth', `1`);
         left.setAttribute('material', 'color:#1f4959; side:double');
 
-        // Right wall: at z = +wallZ
+        // Right wall
         const right=document.createElement('a-box');
         right.setAttribute('position', `0 ${wallHeight/2} ${wallZ}`);
         right.setAttribute('width', `${length}`);
@@ -348,12 +311,10 @@
         buildTunnel();
 
         const p=q('#player'); if (p) {
+          // Start centered in tunnel; face +X (yaw +90°)
           p.setAttribute('position','0 0.8 0');
           const cam = q('#playerCam');
-          if (cam) {
-            // Face down the tunnel (+X): yaw +90°
-            cam.object3D.rotation.set(0, THREE.MathUtils.degToRad(90), 0);
-          }
+          if (cam) { cam.object3D.rotation.set(0, THREE.MathUtils.degToRad(90), 0); }
           const phys=p.components['runner-physics'];
           if (phys){ phys.targetLane=1; phys.velY=0; phys.refreshObstacles(); }
         }
@@ -445,10 +406,9 @@
       <a-light type="directional" intensity="1.4" position="150 25 15"></a-light>
       <a-light type="ambient" color="#ffffff" intensity="0.7"></a-light>
 
-      <!-- Player anchored; camera yaw +90° to face +X; HUD locked as bottom row -->
+      <!-- Player anchored; camera yaw +90° to face +X; HUD fixed to camera face -->
       <a-entity id="player" position="0 0.8 0" runner-physics>
         <a-entity id="playerCam" camera look-controls cursor-whitelist>
-
           <!-- Attach audio to camera -->
           <a-entity id="audio-root">
             <a-entity id="song"   sound="src:url(arktheme.wav);   loop:true; autoplay:false; volume:0.2"></a-entity>
@@ -467,8 +427,8 @@
             <a-entity id="lazer"  sound="src:url(lazer.wav);  loop:false; autoplay:false; volume:0.3"></a-entity>
           </a-entity>
 
-          <!-- HUD: bottom-centered row, inside view -->
-          <a-entity id="HUD" hud-anchor="distance: 1.8; vertical: -0.8; scale: 1">
+          <!-- HUD: bottom-centered row, rigidly attached to camera -->
+          <a-entity id="HUD" position="0 -0.85 -2.2">
             <a-entity id="hud-row" position="0 0 0">
               <!-- Left cluster -->
               <a-plane id="enterArk" width="0.6" height="0.18" material="color:#2c3e50; side: double" class="ui" position="-1.8 0 0"></a-plane>
@@ -494,15 +454,15 @@
         </a-entity>
       </a-entity>
 
-      <!-- Tunnel (strict 3-piece, open roof) -->
+      <!-- Tunnel (strict 3-piece, open roof; floor top at y=0) -->
       <a-entity id="tunnel"></a-entity>
 
-      <!-- Countdown images (script positions them to face the player) -->
+      <!-- Countdown images -->
       <a-plane id="threeb" src="#p3" position="0 -100 0" width="1" height="1" material="side: double"></a-plane>
       <a-plane id="twob"   src="#p2" position="0 -100 0" width="1" height="1" material="side: double"></a-plane>
       <a-plane id="oneb"   src="#p1" position="0 -100 0" width="1" height="1" material="side: double"></a-plane>
 
-      <!-- Boss (invisible until level 5) -->
+      <!-- Boss -->
       <a-entity id="boss" position="800 -60 0" rotation="0 90 0" scale="50 50 50"
                 obj-model="obj: #run-obj"
                 material="color:#cccccc; side: double"
@@ -514,7 +474,7 @@
       <!-- Reset button (explicit) -->
       <a-plane id="resetb" src="#resetp" width="0.7" height="0.2" position="13 0 0" rotation="0 -90 0" material="side: double" class="ui"></a-plane>
 
-      <!-- Minimal score history (text only) -->
+      <!-- Minimal score history -->
       <a-entity id="lastscore"  position="-14.8 2 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
       <a-entity id="lastscore2" position="-14.8 1.5 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
       <a-entity id="lastscore3" position="-14.8 1.0 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
