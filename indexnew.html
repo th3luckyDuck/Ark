@@ -30,19 +30,18 @@
         }
       });
 
-      /* ===== HUD anchor: centered bottom row, locked to camera ===== */
+      /* ===== HUD anchor: bottom-centered row, locked to camera ===== */
       AFRAME.registerComponent('hud-anchor', {
         schema: {
-          distance: {type:'number', default: 2.0},   // how far in front of camera
-          vertical: {type:'number', default: -0.9},  // push down to bottom of view
-          scale:    {type:'number', default: 1.0}    // overall HUD scale
+          distance: {type:'number', default: 2.2},   // in front of camera
+          vertical: {type:'number', default: -0.9},  // near bottom of view
+          scale:    {type:'number', default: 1.0}
         },
         tick() {
           const cam = this.el.sceneEl.camera?.el;
           if (!cam) return;
           const camObj = cam.object3D;
 
-          // Place HUD in front of camera using its forward vector, then drop vertically
           const forward = new THREE.Vector3(0,0,-1).applyQuaternion(camObj.quaternion).normalize();
           const pos = new THREE.Vector3().copy(camObj.position)
             .add(forward.multiplyScalar(this.data.distance))
@@ -50,12 +49,8 @@
 
           const o3 = this.el.object3D;
           o3.position.copy(pos);
-
-          // Face the camera (billboard) and keep orientation stable
           o3.quaternion.copy(camObj.quaternion);
           o3.rotateY(Math.PI);
-
-          // Optional scale tuning
           o3.scale.setScalar(this.data.scale);
         }
       });
@@ -72,7 +67,6 @@
           this.obstacles = [];
           this.refreshObstacles = () => { this.obstacles = qa('.obstacle'); };
 
-          // Anchor player at origin
           const p = this.el.object3D.position;
           p.set(0, this.data.groundY + this.size.y/2, 0);
 
@@ -92,7 +86,7 @@
           const tz=this.lanes[this.targetLane];
           pos.z += (tz - pos.z) * Math.min(1, d*12);
 
-          // Clamp Z to side walls (open roof, but side walls at ±10)
+          // Clamp Z to side walls (±10)
           pos.z = Math.max(-9.5, Math.min(9.5, pos.z));
 
           // Gravity
@@ -107,21 +101,16 @@
           const max = new THREE.Vector3().copy(pos).add(half);
           this.playerBox.min.copy(min); this.playerBox.max.copy(max);
 
-          // Collisions with blocks: hard reset game immediately
+          // Collisions with blocks: hard reset
           const obs = Array.isArray(this.obstacles) ? this.obstacles : [];
           for(const e of obs){
-            const o=e.object3D;
-            const wp=new THREE.Vector3(); o.getWorldPosition(wp);
+            const wp=new THREE.Vector3();
+            e.object3D.getWorldPosition(wp);
             const geo=e.getAttribute('geometry')||{};
-            const sx=geo.width||1, sy=geo.height||1, sz=geo.depth||1;
+            const sx=geo.width||2, sy=geo.height||8, sz=geo.depth||4;
             const hb=new THREE.Vector3(sx/2,sy/2,sz/2);
-            const bmin=new THREE.Vector3().copy(wp).sub(hb);
-            const bmax=new THREE.Vector3().copy(wp).add(hb);
-            const box=new THREE.Box3(bmin,bmax);
-            if(this.playerBox.intersectsBox(box)){
-              hardReset(false);
-              break;
-            }
+            const box=new THREE.Box3(wp.clone().sub(hb), wp.clone().add(hb));
+            if(this.playerBox.intersectsBox(box)){ hardReset(false); break; }
           }
         }
       });
@@ -130,7 +119,7 @@
       let timers = [];
       let intervals = [];
       let gameStarted = false;
-      let startWired = false; // prevents double-start bug
+      let startWired = false;
       let scoring = false;
       let score = 0;
       let lastscore=0,lastscore2=0,lastscore3=0,lastscore4=0,lastscore5=0;
@@ -148,6 +137,9 @@
         tunnel.innerHTML='';
         tunnel.setAttribute('position','0 0 0');
 
+        // Three boxes, centered around the player, long in +X and -X
+        const length = 2000;
+
         const mk = (pos, rot, scale, color) => {
           const e=document.createElement('a-box');
           e.setAttribute('position',pos);
@@ -157,11 +149,10 @@
           return e;
         };
 
-        // Centered long tunnel around player: extends far in both directions on +X/−X
-        const length = 2000;
-
-        // Floor at y=0; open roof; side walls z = ±10
+        // Floor: flat surface at y=0, extends length along X
         const floor = mk('0 0 0','-90 0 0',`${length} 10 10`,'#1f4959');
+
+        // Side walls at z = ±10, tall enough for the run
         const left  = mk('0 15 -10','0 0 0', `${length} 30 1`,'#1f4959');
         const right = mk('0 15 10','0 0 0',  `${length} 30 1`,'#1f4959');
 
@@ -170,22 +161,21 @@
         tunnel.appendChild(right);
       }
 
-      /* ===== Blocks: fall then rush at player down the tunnel ===== */
+      /* ===== Blocks: fall then rush at player ===== */
       const colors = {1:'#ff0000', 2:'#a041f4', 3:'#f47c41', 4:'#4158f4', 5:'#0618a3'};
 
       function spawnBlock(level, lane) {
         const laneZ = [-3,0,3][lane];
         const scene = q('a-scene');
-        const startX = 700; // far down the tunnel (+X)
+        const startX = 700;
         const fallH  = 35;
 
         const box = document.createElement('a-box');
         box.classList.add('obstacle');
-        box.setAttribute('geometry', 'primitive: box; width: 2; height: 8; depth: 4'); // ensure geometry values exist
+        box.setAttribute('geometry', 'primitive: box; width: 2; height: 8; depth: 4');
         box.setAttribute('position', `${startX} ${fallH} ${laneZ}`);
         box.setAttribute('material', `color: ${colors[level]}; side: double; metalness:0; roughness:1`);
 
-        // fall to y=2
         box.setAttribute('animation__fall', {
           property: 'position',
           from: `${startX} ${fallH} ${laneZ}`,
@@ -193,7 +183,6 @@
           dur:  900,
           easing: 'easeOutCubic'
         });
-        // rush to past player
         box.setAttribute('animation__rush', {
           property: 'position',
           from: `${startX} 2 ${laneZ}`,
@@ -220,7 +209,7 @@
 
       /* ===== Music + gates ===== */
       function wireMusicAndGates(){
-        if (startWired) return; // prevent double wiring causing first-click anomaly
+        if (startWired) return;
         startWired = true;
 
         const target=q('#target'); if(!target) return;
@@ -238,7 +227,6 @@
           ['#song','#song2','#song4','#song5','#song6'].forEach(pause);
           play('#song3');
           scheduleBlocks(2, 45, 1400);
-          q('#player')?.components?.['runner-physics']?.refreshObstacles();
         }, {once:true});
 
         target.addEventListener('start3', ()=>{
@@ -246,7 +234,6 @@
           ['#song','#song2','#song3','#song5','#song6'].forEach(pause);
           play('#song4');
           scheduleBlocks(3, 45, 1350);
-          q('#player')?.components?.['runner-physics']?.refreshObstacles();
         }, {once:true});
 
         target.addEventListener('start4', ()=>{
@@ -254,7 +241,6 @@
           ['#song','#song2','#song3','#song4','#song6'].forEach(pause);
           play('#song5');
           scheduleBlocks(4, 45, 1300);
-          q('#player')?.components?.['runner-physics']?.refreshObstacles();
         }, {once:true});
 
         target.addEventListener('start5', ()=>{
@@ -264,7 +250,6 @@
           boss = true;
           scheduleBlocks(5, 60, 1200);
 
-          // Boss appears only now, rises from distance, approaches
           const bossE = q('#boss');
           if (bossE){
             bossE.setAttribute('visible','true');
@@ -280,7 +265,6 @@
           setTimeout(()=>play('#hah3'),4500);
         }, {once:true});
 
-        // Gate timers (original cadence)
         timers.push(setTimeout(()=>emit('start2',['#target']), 50000));
         timers.push(setTimeout(()=>emit('start3',['#target']),100000));
         timers.push(setTimeout(()=>emit('start4',['#target']),150000));
@@ -294,7 +278,7 @@
         const forward = new THREE.Vector3(0,0,-1).applyQuaternion(cam.quaternion).normalize();
         const basePos = new THREE.Vector3().copy(cam.position).add(forward.multiplyScalar(2)).add(new THREE.Vector3(0,0.9,0));
 
-        const rotY = (new THREE.Euler().setFromQuaternion(cam.quaternion)).y + Math.PI; // face camera
+        const rotY = (new THREE.Euler().setFromQuaternion(cam.quaternion)).y + Math.PI;
         const rot = `0 ${THREE.MathUtils.radToDeg(rotY)} 0`;
 
         const three=q('#threeb'), two=q('#twob'), one=q('#oneb');
@@ -317,7 +301,7 @@
         boss=false;
         scoring=false;
         gameStarted=false;
-        startWired=false; // allow wiring again after reset
+        startWired=false;
 
         if (score>=50){ lastscore5=lastscore4; lastscore4=lastscore3; lastscore3=lastscore2; lastscore2=lastscore; lastscore=score; }
         setText('#lastscore', String(lastscore));
@@ -335,11 +319,10 @@
         buildTunnel();
 
         const p=q('#player'); if (p) {
-          // Start centered in tunnel
           p.setAttribute('position','0 0.8 0');
           const cam = q('#playerCam');
           if (cam) {
-            // Turn 90° to the right from default -Z to face +X
+            // Turn 90° to the right to face +X
             cam.object3D.rotation.set(0, THREE.MathUtils.degToRad(-90), 0);
           }
           const phys=p.components['runner-physics'];
@@ -357,25 +340,24 @@
           play('#song2'); play('#click');
         });
 
-        // Start game (wire before emit)
+        // Start game: wire before emit, avoid double state setting
         bindClick('#startcc', ()=>{
-          if (gameStarted) return; // ignore accidental re-clicks while running
-          wireMusicAndGates();     // ensure listeners are bound once
+          if (gameStarted) return;
+          wireMusicAndGates();
           play('#begin3');
-          emit('start1',['#target','#tunnel']);
-          scoring=true; gameStarted=true;
-          showCountdown();
+          emit('start1',['#target']);
+          gameStarted=true;
         });
 
         // Lane buttons
-        bindClick('#leftT',   ()=>{ const p=q('#player'); const c=p?.components?.['runner-physics']; if(c){ c.targetLane=0; } });
-        bindClick('#centerT', ()=>{ const p=q('#player'); const c=p?.components?.['runner-physics']; if(c){ c.targetLane=1; } });
-        bindClick('#rightT',  ()=>{ const p=q('#player'); const c=p?.components?.['runner-physics']; if(c){ c.targetLane=2; } });
+        bindClick('#leftT',   ()=>{ const c=q('#player')?.components?.['runner-physics']; if(c){ c.targetLane=0; } });
+        bindClick('#centerT', ()=>{ const c=q('#player')?.components?.['runner-physics']; if(c){ c.targetLane=1; } });
+        bindClick('#rightT',  ()=>{ const c=q('#player')?.components?.['runner-physics']; if(c){ c.targetLane=2; } });
 
         // Jump
-        bindClick('#jumpb', ()=>{ const p=q('#player'); p?.components?.['runner-physics']?.jump(); });
+        bindClick('#jumpb', ()=>{ q('#player')?.components?.['runner-physics']?.jump(); });
 
-        // Mute toggle (preserve attributes, flip only volume)
+        // Mute toggle (flip only volume; preserve attributes)
         bindClick('#songT', ()=>{
           const ids=['#song','#song2','#song3','#song4','#song5','#song6','#begin3','#gameovers','#lazer','#click','#click2','#hah1','#hah2','#hah3'];
           const muted = (q('#song').components?.sound?.data?.volume===0);
@@ -387,13 +369,11 @@
           });
         });
 
-        // Return to Lobby: hard reset + intro
+        // Lobby / join / reset
         bindClick('#lobbybtn', ()=>{ play('#click2'); hardReset(true); });
         bindClick('#joinsm',   ()=>{ play('#click2'); });
         bindClick('#joinh',    ()=>{ play('#click2'); });
-
-        // Reset button (explicit)
-        bindClick('#resetb', ()=>{ hardReset(false); });
+        bindClick('#resetb',   ()=>{ hardReset(false); });
 
         // Scoring tick
         intervals.push(setInterval(()=>{ if (scoring){ score+=10; setText('#scoreshow', String(score)); } },2000));
@@ -404,7 +384,7 @@
         // Initialize obstacle list
         q('#player')?.components?.['runner-physics']?.refreshObstacles();
 
-        // Ensure player faces down tunnel at start (90° right from default)
+        // Ensure camera faces +X at start
         const cam=q('#playerCam');
         if (cam) { cam.object3D.rotation.set(0, THREE.MathUtils.degToRad(-90), 0); }
       });
@@ -432,15 +412,15 @@
         <a-asset-item id="run-obj" src="run.obj"></a-asset-item>
       </a-assets>
 
-      <!-- Lights: directional + ambient for full-side visibility -->
+      <!-- Lights: directional + ambient -->
       <a-light type="directional" intensity="1.4" position="150 25 15"></a-light>
       <a-light type="ambient" color="#ffffff" intensity="0.7"></a-light>
 
-      <!-- Player anchored; camera turned 90° right to face +X; HUD locked to camera -->
+      <!-- Player anchored; camera 90° right to face +X; HUD locked as bottom row -->
       <a-entity id="player" position="0 0.8 0" runner-physics>
         <a-entity id="playerCam" camera look-controls cursor-whitelist>
 
-          <!-- Attach all audio to camera for consistent spatial sound -->
+          <!-- Attach audio to camera -->
           <a-entity id="audio-root">
             <a-entity id="song"   sound="src:url(arktheme.wav);   loop:true; autoplay:false; volume:0.2"></a-entity>
             <a-entity id="song2"  sound="src:url(arkpregame.wav); loop:true; autoplay:false; volume:0.2"></a-entity>
@@ -458,44 +438,42 @@
             <a-entity id="lazer"  sound="src:url(lazer.wav);  loop:false; autoplay:false; volume:0.3"></a-entity>
           </a-entity>
 
-          <!-- HUD: centered bottom row, locked to camera -->
+          <!-- HUD: bottom-centered row -->
           <a-entity id="HUD" hud-anchor="distance: 2.2; vertical: -0.9; scale: 1">
-            <!-- Row container -->
             <a-entity id="hud-row" position="0 0 0">
               <!-- Left cluster -->
-              <a-plane id="enterArk" width="0.6" height="0.18" material="color:#2c3e50; side: double" class="ui" position="-1.6 0 0"></a-plane>
-              <a-entity text="value: Enter Ark; color:#fff; align:center; width:3" position="-1.6 0 0.01"></a-entity>
-
-              <a-plane id="startcc" src="#startp" width="0.6" height="0.18" material="side: double" class="ui" position="-0.9 0 0"></a-plane>
-              <a-plane id="songT"   src="#mutep"  width="0.45" height="0.18" material="side: double" class="ui" position="-0.35 0 0"></a-plane>
+              <a-plane id="enterArk" width="0.6" height="0.18" material="color:#2c3e50; side: double" class="ui" position="-1.7 0 0"></a-plane>
+              <a-entity text="value: Enter Ark; color:#fff; align:center; width:3" position="-1.7 0 0.01"></a-entity>
+              <a-plane id="startcc" src="#startp" width="0.6" height="0.18" material="side: double" class="ui" position="-0.95 0 0"></a-plane>
+              <a-plane id="songT"   src="#mutep"  width="0.45" height="0.18" material="side: double" class="ui" position="-0.40 0 0"></a-plane>
 
               <!-- Center cluster: lanes + jump -->
-              <a-plane id="leftT"   src="#leftp"   width="0.28" height="0.18" material="side: double" class="ui" position="0.10 0 0"></a-plane>
-              <a-plane id="centerT" src="#centerp" width="0.28" height="0.18" material="side: double" class="ui" position="0.45 0 0"></a-plane>
-              <a-plane id="rightT"  src="#rightp"  width="0.28" height="0.18" material="side: double" class="ui" position="0.80 0 0"></a-plane>
-              <a-plane id="jumpb"   src="#jumpp"   width="0.42" height="0.18" material="side: double" class="ui" position="1.25 0 0"></a-plane>
+              <a-plane id="leftT"   src="#leftp"   width="0.28" height="0.18" material="side: double" class="ui" position="0.05 0 0"></a-plane>
+              <a-plane id="centerT" src="#centerp" width="0.28" height="0.18" material="side: double" class="ui" position="0.40 0 0"></a-plane>
+              <a-plane id="rightT"  src="#rightp"  width="0.28" height="0.18" material="side: double" class="ui" position="0.75 0 0"></a-plane>
+              <a-plane id="jumpb"   src="#jumpp"   width="0.42" height="0.18" material="side: double" class="ui" position="1.20 0 0"></a-plane>
 
               <!-- Right cluster: lobby/join/reset -->
-              <a-plane id="lobbybtn" src="#lobbyp"       width="0.55" height="0.18" material="side: double" class="ui" position="1.85 0 0"></a-plane>
-              <a-plane id="joinsm"   src="#joinsmallp"   width="0.24" height="0.18" material="side: double" class="ui" position="2.25 0 0"></a-plane>
-              <a-plane id="joinh"    src="#joinp"        width="0.55" height="0.18" material="side: double" class="ui" position="2.65 0 0"></a-plane>
+              <a-plane id="lobbybtn" src="#lobbyp"       width="0.55" height="0.18" material="side: double" class="ui" position="1.80 0 0"></a-plane>
+              <a-plane id="joinsm"   src="#joinsmallp"   width="0.24" height="0.18" material="side: double" class="ui" position="2.20 0 0"></a-plane>
+              <a-plane id="joinh"    src="#joinp"        width="0.55" height="0.18" material="side: double" class="ui" position="2.60 0 0"></a-plane>
 
-              <!-- Score (right-end, small offset forward) -->
+              <!-- Score -->
               <a-entity id="scoreshow" text="value: 0; color: #6FF3E8; align: left; width: 6" position="3.15 0 0.01"></a-entity>
             </a-entity>
           </a-entity>
         </a-entity>
       </a-entity>
 
-      <!-- Tunnel (3-piece, open roof, long both directions so player is centered) -->
+      <!-- Tunnel (3-piece, open roof) -->
       <a-entity id="tunnel"></a-entity>
 
-      <!-- Countdown images (script positions them to face the player) -->
+      <!-- Countdown images -->
       <a-plane id="threeb" src="#p3" position="0 -100 0" width="1" height="1" material="side: double"></a-plane>
       <a-plane id="twob"   src="#p2" position="0 -100 0" width="1" height="1" material="side: double"></a-plane>
       <a-plane id="oneb"   src="#p1" position="0 -100 0" width="1" height="1" material="side: double"></a-plane>
 
-      <!-- Boss (invisible until level 5) -->
+      <!-- Boss -->
       <a-entity id="boss" position="800 -60 0" rotation="0 90 0" scale="50 50 50"
                 obj-model="obj: #run-obj"
                 material="color:#cccccc; side: double"
@@ -504,10 +482,10 @@
       <!-- Target for gate events -->
       <a-entity id="target"></a-entity>
 
-      <!-- Reset button (explicit) — kept in world near player for fallback -->
+      <!-- Reset button (world fallback) -->
       <a-plane id="resetb" src="#resetp" width="0.7" height="0.2" position="13 0 0" rotation="0 -90 0" material="side: double" class="ui"></a-plane>
 
-      <!-- Minimal score history (text only) -->
+      <!-- Minimal score history -->
       <a-entity id="lastscore"  position="-14.8 2 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
       <a-entity id="lastscore2" position="-14.8 1.5 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
       <a-entity id="lastscore3" position="-14.8 1.0 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
