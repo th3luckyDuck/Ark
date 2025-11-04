@@ -2,28 +2,24 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Ark — Browser edition (near 1:1 rewrite)</title>
-    <!-- Modern A-Frame -->
+    <title>Ark — Browser edition (tunnel + block remake)</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-
     <style>
-      /* Prevent text selection while clicking UI */
       html, body { margin:0; padding:0; background:#000; }
       canvas { outline: none; }
     </style>
 
     <script>
-      /* ===== Core helpers ===== */
-      const q = sel => document.querySelector(sel);
-      const qa = sel => Array.from(document.querySelectorAll(sel));
-      const isEntity = el => !!(el && el.object3D && typeof el.emit === 'function');
-      const emitToTargets = (type, targets) => targets.forEach(sel => { const el = q(sel); if (isEntity(el)) el.emit(type, null, false); });
+      /* ===== Shortcuts ===== */
+      const q = s => document.querySelector(s);
+      const qa = s => Array.from(document.querySelectorAll(s));
+      const emit = (type, ids) => ids.forEach(id => q(id)?.emit(type, null, false));
+      const play = id => { const e = q(id); if (e?.components?.sound) e.components.sound.playSound(); };
+      const pause = id => { const e = q(id); if (e?.components?.sound) e.components.sound.pauseSound(); };
+      const setText = (id, v) => q(id)?.setAttribute('text', `value: ${v}; color: #6FF3E8; width: 6; align: left`);
+      const bindClick = (sel, cb) => { const el = q(sel); if (!el) return; el.classList.add('ui'); el.addEventListener('click', cb); };
 
-      function playSound(id) { const el = q(id); if (el?.components?.sound) el.components.sound.playSound(); }
-      function pauseSound(id) { const el = q(id); if (el?.components?.sound) el.components.sound.pauseSound(); }
-      function setText(id, value) { const el = q(id); if (el) el.setAttribute('text', `value: ${value}; color: #6FF3E8; width: 6; align: left`); }
-
-      /* ===== Cursor whitelist to kill raycaster warnings ===== */
+      /* ===== Cursor whitelist ===== */
       AFRAME.registerComponent('cursor-whitelist', {
         init() {
           this.el.setAttribute('cursor', 'rayOrigin: mouse; fuse: false');
@@ -31,402 +27,327 @@
         }
       });
 
-      /* ===== HUD anchor: bottom of camera view; no overlap ===== */
+      /* ===== HUD anchor ===== */
       AFRAME.registerComponent('hud-anchor', {
-        schema: { offset: {type: 'vec3', default: {x: 0, y: -0.52, z: -1.05}}, tilt: {type: 'number', default: -8} },
+        schema: { offset: {type:'vec3', default: {x:0, y:-0.52, z:-1.05}}, tilt: {type:'number', default:-8} },
         tick() {
           const {x,y,z} = this.data.offset;
           const o3 = this.el.object3D;
           o3.position.set(x,y,z);
-          o3.rotation.set(THREE.MathUtils.degToRad(this.data.tilt), 0, 0);
+          o3.rotation.set(THREE.MathUtils.degToRad(this.data.tilt),0,0);
         }
       });
 
-      /* ===== Runner physics (WASD + arrows for lane swap, Space to jump) ===== */
+      /* ===== Runner physics (lanes along Z; tunnel extends along X) ===== */
       AFRAME.registerComponent('runner-physics', {
-        schema: {
-          gravity: {default: -9.8},
-          jumpVelocity: {default: 6.0},
-          groundY: {default: 0}
-        },
+        schema: { gravity:{default:-9.8}, jumpVelocity:{default:6}, groundY:{default:0} },
         init() {
-          this.velY = 0;
-          this.grounded = true;
-          this.targetLane = 1; // 0 left, 1 center, 2 right
-          this.laneX = [-3, 0, 3];
-          this.size = new THREE.Vector3(0.8, 1.6, 0.8);
+          this.velY = 0; this.grounded = true;
+          this.targetLane = 1; // 0:-3, 1:0, 2:+3 on Z
+          this.lanes = [-3,0,3];
+          this.size = new THREE.Vector3(0.8,1.6,0.8);
           this.playerBox = new THREE.Box3();
-          this.obstacles = []; // filled after world init
-
+          this.refreshObstacles = () => { this.obstacles = qa('.obstacle'); };
           window.addEventListener('keydown', e => {
             const k = e.key;
-            if (k === 'ArrowLeft' || k === 'a' || k === 'A') this.targetLane = Math.max(0, this.targetLane - 1);
-            if (k === 'ArrowRight' || k === 'd' || k === 'D') this.targetLane = Math.min(2, this.targetLane + 1);
-            if (k === ' ' || k === 'Spacebar') this.jump();
+            if (k==='ArrowLeft' || k==='a' || k==='A') this.targetLane = Math.max(0, this.targetLane-1);
+            if (k==='ArrowRight' || k==='d' || k==='D') this.targetLane = Math.min(2, this.targetLane+1);
+            if (k===' ' || k==='Spacebar') this.jump();
           });
         },
-        jump() {
-          if (this.grounded) { this.velY = this.data.jumpVelocity; this.grounded = false; emitToTargets('jump', ['#jumpb']); }
-        },
-        refreshObstacles() {
-          this.obstacles = qa('.obstacle').map(el => ({
-            el,
-            box: new THREE.Box3(),
-          }));
-        },
-        tick(t, dt) {
-          const d = dt / 1000;
-          if (!d) return;
-          const pos = this.el.object3D.position;
-
-          // Lane move
-          const tx = this.laneX[this.targetLane];
-          pos.x += (tx - pos.x) * Math.min(1, d * 12);
-
-          // Gravity
-          this.velY += this.data.gravity * d;
-          pos.y += this.velY * d;
-
-          const ground = this.data.groundY + this.size.y/2;
-          if (pos.y <= ground) {
-            pos.y = ground;
-            this.velY = 0;
-            this.grounded = true;
-          }
-
-          // Player AABB
+        jump(){ if(this.grounded){ this.velY=this.data.jumpVelocity; this.grounded=false; emit('jump',['#jumpb']); } },
+        tick(t,dt){
+          const d=dt/1000; if(!d) return;
+          const pos=this.el.object3D.position;
+          // lane snap (on Z)
+          const tz=this.lanes[this.targetLane];
+          pos.z += (tz - pos.z) * Math.min(1, d*12);
+          // gravity
+          this.velY += this.data.gravity*d;
+          pos.y += this.velY*d;
+          const gy=this.data.groundY + this.size.y/2;
+          if(pos.y<=gy){ pos.y=gy; this.velY=0; this.grounded=true; }
+          // player box
           const half = new THREE.Vector3(this.size.x/2, this.size.y/2, this.size.z/2);
           const min = new THREE.Vector3().copy(pos).sub(half);
           const max = new THREE.Vector3().copy(pos).add(half);
-          this.playerBox.min.copy(min);
-          this.playerBox.max.copy(max);
-
-          // Collisions
-          for (const o of this.obstacles) {
-            // compute world box from geometry/scale/pos
-            const wp = new THREE.Vector3(); o.el.object3D.getWorldPosition(wp);
-            const sc = new THREE.Vector3(); o.el.object3D.getWorldScale(sc);
-            const geo = o.el.getAttribute('geometry') || {};
-            const sx = geo.width || geo.radius || sc.x;
-            const sy = geo.height || geo.radius || sc.y;
-            const sz = geo.depth || geo.radius || sc.z;
-            const halfO = new THREE.Vector3(sx/2, sy/2, sz/2);
-            o.box.min.copy(new THREE.Vector3().copy(wp).sub(halfO));
-            o.box.max.copy(new THREE.Vector3().copy(wp).add(halfO));
-            if (this.playerBox.intersectsBox(o.box)) {
-              // game end -> reset button click
-              const resetBtn = q('#resetb');
-              if (resetBtn) { resetBtn.emit('click'); resetBtn.dispatchEvent(new Event('click')); }
-              emitToTargets('gameend', ['#gameovert']);
+          this.playerBox.min.copy(min); this.playerBox.max.copy(max);
+          // collisions
+          for(const el of this.obstacles){
+            const o=el.object3D;
+            const wp=new THREE.Vector3(); o.getWorldPosition(wp);
+            const sc=new THREE.Vector3(); o.getWorldScale(sc);
+            const geo=el.getAttribute('geometry')||{};
+            const sx=geo.width||sc.x, sy=geo.height||sc.y, sz=geo.depth||sc.z;
+            const hb=new THREE.Vector3(sx/2,sy/2,sz/2);
+            const bmin=new THREE.Vector3().copy(wp).sub(hb);
+            const bmax=new THREE.Vector3().copy(wp).add(hb);
+            const box=new THREE.Box3(bmin,bmax);
+            if(this.playerBox.intersectsBox(box)){
+              q('#resetb')?.dispatchEvent(new Event('click'));
+              emit('gameend',['#gameovert']);
               break;
             }
           }
         }
       });
 
-      /* ===== Wire: basic click binding (replacement for Altspace wire/on/emit/targets) ===== */
-      function bindClick(id, cb) { const el = q(id); if (el) { el.classList.add('ui'); el.addEventListener('click', cb); } }
-
-      /* ===== World builder: faithful obstacles & timings ===== */
-      const world = {
-        // Copy of start-gate delays (ms) from original a-animation IDs
-        gates: { start2: 50000, start3: 100000, start4: 150000, start5: 200000 },
-        // Block waves derived from original content. Each entry spawns a colored box at lane Z (-3,0,3) and scrolls X from -1000 to 1000 over 20000ms.
-        // We map every original group by its delay chain; doing this programmatically keeps the file maintainable but preserves timing and lanes.
-        waves: [
-          // Level 1 (red) — many waves with varied delays
-          {start:'start1', delay: 0, lanes:[0, 3, -3]}, {start:'start1', delay: 2000, lanes:[0]}, {start:'start1', delay: 4000, lanes:[3]},
-          {start:'start1', delay: 5000, lanes:[0]}, {start:'start1', delay: 7000, lanes:[3]}, {start:'start1', delay: 9000, lanes:[-3]},
-          {start:'start1', delay: 10000, lanes:[0]}, {start:'start1', delay: 12000, lanes:[3]}, {start:'start1', delay: 14000, lanes:[-3]},
-          {start:'start1', delay: 16000, lanes:[-3]}, {start:'start1', delay: 17000, lanes:[0]}, {start:'start1', delay: 19000, lanes:[3]},
-          {start:'start1', delay: 21000, lanes:[-3]}, {start:'start1', delay: 22000, lanes:[0]}, {start:'start1', delay: 24000, lanes:[3]},
-          {start:'start1', delay: 26000, lanes:[-3]},
-          // Level 2 (purple)
-          {start:'start2', delay: 2000, lanes:[0]}, {start:'start2', delay: 7000, lanes:[3]}, {start:'start2', delay: 9000, lanes:[3]},
-          {start:'start2', delay: 14000, lanes:[-3]}, {start:'start2', delay: 16000, lanes:[-3]}, {start:'start2', delay: 15000, lanes:[0]},
-          {start:'start2', delay: 17000, lanes:[0]},
-          // Level 3 (orange)
-          {start:'start3', delay: 2000, lanes:[0]}, {start:'start3', delay: 4000, lanes:[3]}, {start:'start3', delay: 9000, lanes:[-3]},
-          {start:'start3', delay: 10000, lanes:[0]}, {start:'start3', delay: 11000, lanes:[-3]}, {start:'start3', delay: 12000, lanes:[0]},
-          {start:'start3', delay: 17000, lanes:[3]}, {start:'start3', delay: 19000, lanes:[3]}, {start:'start3', delay: 20000, lanes:[0]}, {start:'start3', delay: 22000, lanes:[0]},
-          // Level 4 (blue)
-          {start:'start4', delay: 4000, lanes:[-3]}, {start:'start4', delay: 5000, lanes:[0]}, {start:'start4', delay: 6000, lanes:[-3]},
-          {start:'start4', delay: 7000, lanes:[0]}, {start:'start4', delay: 12000, lanes:[0]}, {start:'start4', delay: 14000, lanes:[3]},
-          {start:'start4', delay: 15000, lanes:[/* the moving tunnel continues */]}, {start:'start4', delay: 19000, lanes:[-3]}, {start:'start4', delay: 21000, lanes:[-3]},
-          {start:'start4', delay: 22000, lanes:[0]}, {start:'start4', delay: 24000, lanes:[3]},
-          // Level 5 (rotating — handled separately with diagonal motion)
-        ],
-        colors: { start1: '#ff0000', start2: '#a041f4', start3: '#f47c41', start4: '#4158f4', start5: '#0618a3' }
-      };
-
-      function spawnScrollingBlock(scene, color, laneZ, delay, duration=20000) {
-        const e = document.createElement('a-box');
-        e.classList.add('obstacle');
-        e.setAttribute('position', `-1000 2 ${laneZ}`);
-        e.setAttribute('scale', '2 8 4');
-        e.setAttribute('material', `color: ${color}; side: double; metalness: 0; roughness: 1`);
-        const anim = document.createElement('a-animation');
-        anim.setAttribute('attribute', 'position');
-        anim.setAttribute('from', `-1000 2 ${laneZ}`);
-        anim.setAttribute('to', `1000 2 ${laneZ}`);
-        anim.setAttribute('dur', String(duration));
-        anim.setAttribute('easing', 'linear');
-        anim.setAttribute('repeat', 'indefinite');
-        anim.setAttribute('delay', String(delay));
-        e.appendChild(anim);
-        scene.appendChild(e);
-      }
-
-      function spawnFallingBlock(scene, color, laneZ, startEvent, delay) {
-        // Small group that drops into place at startN gates (to mirror startNx delayed "from 0 500 0 to 0 0 0")
-        const e = document.createElement('a-box');
-        e.classList.add('obstacle');
-        e.setAttribute('position', `0 500 ${laneZ}`);
-        e.setAttribute('scale', '2 8 4');
-        e.setAttribute('material', `color: ${color}; side: double; metalness: 0; roughness: 1`);
-        const anim = document.createElement('a-animation');
-        anim.setAttribute('attribute', 'position');
-        anim.setAttribute('from', `0 500 ${laneZ}`);
-        anim.setAttribute('to', `0 0 ${laneZ}`);
-        anim.setAttribute('dur', '2000');
-        anim.setAttribute('easing', 'linear');
-        anim.setAttribute('begin', startEvent);
-        anim.setAttribute('delay', String(delay));
-        e.appendChild(anim);
-        scene.appendChild(e);
-      }
-
-      function spawnRotatingDiagonal(scene, laneZ, delay, fromVec, toVec) {
-        const e = document.createElement('a-box');
-        e.classList.add('obstacle');
-        e.setAttribute('position', `0 -500 ${laneZ}`);
-        e.setAttribute('scale', '3.25 8 3.25');
-        e.setAttribute('rotation', '0 0 65');
-        e.setAttribute('material', 'color: #0618a3; side: double; metalness: 0; roughness: 1');
-        const anim = document.createElement('a-animation');
-        anim.setAttribute('attribute', 'position');
-        anim.setAttribute('begin', 'start5');
-        anim.setAttribute('delay', String(delay));
-        anim.setAttribute('dur', '10000');
-        anim.setAttribute('easing', 'linear');
-        anim.setAttribute('repeat', 'indefinite');
-        anim.setAttribute('from', fromVec);
-        anim.setAttribute('to', toVec);
-        e.appendChild(anim);
-        scene.appendChild(e);
-      }
-
-      /* ===== Music progression: faithful to original target listeners ===== */
-      function wireMusicProgression() {
-        const target = q('#target');
-        if (!target) return;
-        target.addEventListener('start1', () => {
-          // enter game: theme only
-          ['#song2','#song3','#song4','#song5','#song6'].forEach(pauseSound);
-          playSound('#song');
-          scoring = true;
-          const joinh = q('#joinh'); if (joinh) joinh.setAttribute('position', '0.8 0.12 -1.05');
-        }, {once:true});
-        target.addEventListener('start2', () => {
-          playSound('#hah1');
-          ['#song','#song2','#song4','#song5','#song6'].forEach(pauseSound);
-          playSound('#song3');
-        }, {once:true});
-        target.addEventListener('start3', () => {
-          playSound('#hah2');
-          ['#song','#song2','#song3','#song5','#song6'].forEach(pauseSound);
-          playSound('#song4');
-        }, {once:true});
-        target.addEventListener('start4', () => {
-          playSound('#hah3');
-          ['#song','#song2','#song3','#song4','#song6'].forEach(pauseSound);
-          playSound('#song5');
-        }, {once:true});
-        target.addEventListener('start5', () => {
-          playSound('#hah1');
-          ['#song','#song2','#song3','#song4','#song5'].forEach(pauseSound);
-          playSound('#song6');
-          boss = true;
-          setTimeout(()=>playSound('#hah1'),4500);
-          setTimeout(()=>playSound('#hah2'),4500);
-          setTimeout(()=>playSound('#hah3'),4500);
-        }, {once:true});
-      }
-
-      /* ===== Level gate timers (replacement for Altspace box-collider containers) ===== */
-      function startLevelTimers() {
-        // Emit gates based on original delays
-        setTimeout(()=>emitToTargets('start2', ['#target']), world.gates.start2);
-        setTimeout(()=>emitToTargets('start3', ['#target']), world.gates.start3);
-        setTimeout(()=>emitToTargets('start4', ['#target']), world.gates.start4);
-        setTimeout(()=>emitToTargets('start5', ['#target']), world.gates.start5);
-      }
-
-      /* ===== Score and reset ===== */
-      let gameStarted = true;
+      /* ===== Global game state ===== */
+      let timers = [];
+      let gameStarted = false;
       let scoring = false;
       let score = 0;
-      let lastscore = 0, lastscore2 = 0, lastscore3 = 0, lastscore4 = 0, lastscore5 = 0;
+      let lastscore=0,lastscore2=0,lastscore3=0,lastscore4=0,lastscore5=0;
       let boss = false;
 
-      function reset() {
-        if (!gameStarted) return;
-        if (score >= 50) {
-          lastscore5 = lastscore4; lastscore4 = lastscore3; lastscore3 = lastscore2; lastscore2 = lastscore; lastscore = score;
-        }
-        if (score >= 15) playSound('#gameovers');
+      function clearTimers(){ timers.forEach(t=>clearTimeout(t)); timers=[]; }
+      function clearObstacles(){ qa('.obstacle').forEach(e=>e.parentNode.removeChild(e)); q('#player')?.components?.['runner-physics']?.refreshObstacles(); }
 
-        gameStarted = false;
-        scoring = false;
-        boss = false;
+      /* ===== Tunnel builder (open line-of-sight down entire run) ===== */
+      function buildTunnel(){
+        const scene=q('a-scene');
+        const tunnel=q('#tunnel')||document.createElement('a-entity');
+        tunnel.setAttribute('id','tunnel');
+        tunnel.setAttribute('position','0 0 0');
+        // Long corridor: floor, left, right, ceiling — all double-sided
+        const makePanel=(pos,rot,scale,color)=>{
+          const e=document.createElement('a-box');
+          e.setAttribute('position',pos);
+          e.setAttribute('rotation',rot);
+          e.setAttribute('scale',scale);
+          e.setAttribute('material',`color: ${color}; side: double`);
+          return e;
+        };
+        // Corridor along X: player at x=0, extends to x=200 then beyond
+        const floor = makePanel('100 0 0','-90 0 0','200 10 10','#1f4959');
+        const left  = makePanel('100 15 -10','0 0 0','200 30 1','#1f4959');
+        const right = makePanel('100 15 10','0 0 0','200 30 1','#1f4959');
+        const ceil  = makePanel('100 30 0','90 0 0','200 10 10','#1f4959');
+        // gentle UV scroll effect via animation on floor for motion illusion
+        const anim=document.createElement('a-animation');
+        anim.setAttribute('attribute','position');
+        anim.setAttribute('begin','start1');
+        anim.setAttribute('to','350 0 0');
+        anim.setAttribute('dur','100000');
+        anim.setAttribute('easing','linear');
+        anim.setAttribute('repeat','indefinite');
+
+        tunnel.innerHTML='';
+        tunnel.appendChild(floor);
+        tunnel.appendChild(left);
+        tunnel.appendChild(right);
+        tunnel.appendChild(ceil);
+        tunnel.appendChild(anim);
+        if(!q('#tunnel')) scene.appendChild(tunnel);
+      }
+
+      /* ===== Block spawner: fall from sky, then rush toward player ===== */
+      const colors = {1:'#ff0000',2:'#a041f4',3:'#f47c41',4:'#4158f4',5:'#0618a3'};
+      function spawnBlock({level=1, lane=0, startDelay=0, fallHeight=30, fallDur=1500, rushStartX=200, rushDur=5000}){
+        // lanes map to Z: -3,0,3
+        const laneZ = [-3,0,3][lane];
+        const scene=q('a-scene');
+        const box=document.createElement('a-box');
+        box.classList.add('obstacle');
+        box.setAttribute('position', `${rushStartX} ${fallHeight} ${laneZ}`);
+        box.setAttribute('scale','2 8 4');
+        box.setAttribute('material', `color: ${colors[level]}; side: double; metalness:0; roughness:1`);
+        // fall animation: to y=2
+        const fall=document.createElement('a-animation');
+        fall.setAttribute('attribute','position');
+        fall.setAttribute('from', `${rushStartX} ${fallHeight} ${laneZ}`);
+        fall.setAttribute('to',   `${rushStartX} 2 ${laneZ}`);
+        fall.setAttribute('dur', String(fallDur));
+        fall.setAttribute('delay', String(startDelay));
+        fall.setAttribute('easing','easeOutCubic');
+        // rush animation: move X from rushStartX to -50 past the player
+        const rush=document.createElement('a-animation');
+        rush.setAttribute('attribute','position');
+        rush.setAttribute('from', `${rushStartX} 2 ${laneZ}`);
+        rush.setAttribute('to',   `-50 2 ${laneZ}`);
+        rush.setAttribute('dur', String(rushDur));
+        rush.setAttribute('delay', String(startDelay + fallDur));
+        rush.setAttribute('easing','linear');
+        box.appendChild(fall); box.appendChild(rush);
+        scene.appendChild(box);
+        q('#player')?.components?.['runner-physics']?.refreshObstacles();
+      }
+
+      /* ===== Level scripts (derived cadence; matches your start gates) ===== */
+      function scheduleLevel(level, baseDelay){
+        // lanes sequence, staggered
+        const patterns = [
+          [1,0,2,1], // L1: center,left,right,center
+          [0,2,1],   // L2
+          [2,1,0,2], // L3
+          [0,1,2],   // L4
+        ];
+        const lanes = patterns[level-1] || [1,0,2];
+        lanes.forEach((lane,i)=>{
+          timers.push(setTimeout(()=>spawnBlock({level, lane, startDelay:0}), baseDelay + i*1500));
+        });
+      }
+
+      function scheduleLevel5(baseDelay){
+        // Rotating diagonals (visual), plus rushers
+        const scene=q('a-scene');
+        const makeRotDiag=(laneZ, delay, from, to)=>{
+          const e=document.createElement('a-box');
+          e.classList.add('obstacle');
+          e.setAttribute('position', `0 -500 ${laneZ}`);
+          e.setAttribute('scale','3.25 8 3.25');
+          e.setAttribute('rotation','0 0 65');
+          e.setAttribute('material','color: #0618a3; side: double; metalness:0; roughness:1');
+          const anim=document.createElement('a-animation');
+          anim.setAttribute('attribute','position');
+          anim.setAttribute('begin','start5');
+          anim.setAttribute('delay', String(delay));
+          anim.setAttribute('dur','10000');
+          anim.setAttribute('easing','linear');
+          anim.setAttribute('repeat','indefinite');
+          anim.setAttribute('from', from);
+          anim.setAttribute('to', to);
+          e.appendChild(anim);
+          scene.appendChild(e);
+        };
+        // match your cadence
+        [12000,16000,23000,27000,33000,39000].forEach(d=>makeRotDiag(-3,d,'-500 250 -15','500 -248 12'));
+        [11000,17000,22000,29000,35000,38000].forEach(d=>makeRotDiag( 3,d,'-500 250 15','500 -248 -12'));
+
+        // add rushers mixed in
+        [0,1,2,0,2,1].forEach((lane,i)=>{
+          timers.push(setTimeout(()=>spawnBlock({level:5,lane}), baseDelay + i*1400));
+        });
+      }
+
+      /* ===== Music progression and gates ===== */
+      function wireMusic(){
+        const target=q('#target'); if(!target) return;
+        target.addEventListener('start1', ()=>{
+          ['#song2','#song3','#song4','#song5','#song6'].forEach(pause);
+          play('#song'); scoring=true;
+        });
+        target.addEventListener('start2', ()=>{
+          play('#hah1'); ['#song','#song2','#song4','#song5','#song6'].forEach(pause); play('#song3');
+          scheduleLevel(2, 0);
+        });
+        target.addEventListener('start3', ()=>{
+          play('#hah2'); ['#song','#song2','#song3','#song5','#song6'].forEach(pause); play('#song4');
+          scheduleLevel(3, 0);
+        });
+        target.addEventListener('start4', ()=>{
+          play('#hah3'); ['#song','#song2','#song3','#song4','#song6'].forEach(pause); play('#song5');
+          scheduleLevel(4, 0);
+        });
+        target.addEventListener('start5', ()=>{
+          play('#hah1'); ['#song','#song2','#song3','#song4','#song5'].forEach(pause); play('#song6');
+          boss=true; scheduleLevel5(0);
+          setTimeout(()=>play('#hah1'),4500);
+          setTimeout(()=>play('#hah2'),4500);
+          setTimeout(()=>play('#hah3'),4500);
+          // Boss rise: from below, forward, then hover
+          const bossE=q('#boss');
+          if(bossE){
+            bossE.setAttribute('animation__rise','property: position; from: 0 -100 0; to: 30 0 0; dur: 2500; easing: easeOutCubic; startEvents: boss-rise');
+            bossE.emit('boss-rise');
+          }
+        });
+      }
+
+      function startGates(){
+        // L1 spawns and music already wired in start1
+        scheduleLevel(1, 0);
+        timers.push(setTimeout(()=>emit('start2',['#target']), 50000));
+        timers.push(setTimeout(()=>emit('start3',['#target']),100000));
+        timers.push(setTimeout(()=>emit('start4',['#target']),150000));
+        timers.push(setTimeout(()=>emit('start5',['#target']),200000));
+      }
+
+      /* ===== Reset + Return to Lobby ===== */
+      function hardReset(toLobby=false){
+        clearTimers();
+        clearObstacles();
+        boss=false;
+        scoring=false;
+        gameStarted=false;
+        // Reset HUD placement
+        q('#startcc')?.setAttribute('position','-0.20 0.02 -1.05');
+        // Score reset
+        if (score>=50){ lastscore5=lastscore4; lastscore4=lastscore3; lastscore3=lastscore2; lastscore2=lastscore; lastscore=score; }
         setText('#lastscore', String(lastscore));
         setText('#lastscore2', String(lastscore2));
         setText('#lastscore3', String(lastscore3));
         setText('#lastscore4', String(lastscore4));
         setText('#lastscore5', String(lastscore5));
-        setText('#scoreshow', '0');
-        score = 0;
-
-        // Restore Start Game visibility
-        const startBtn = q('#startcc'); if (startBtn) startBtn.setAttribute('position','-0.20 -0.02 -1.05');
-
-        setTimeout(()=>{ gameStarted = true; }, 5000);
+        score=0; setText('#scoreshow','0');
+        // Stop all music, optionally resume intro
+        ['#song','#song2','#song3','#song4','#song5','#song6','#hah1','#hah2','#hah3','#gameovers','#load'].forEach(pause);
+        if (toLobby) play('#song2');
+        // Rebuild tunnel to pristine
+        buildTunnel();
+        // Player position reset
+        const p=q('#player'); if (p) { p.object3D.position.set(0,0.8,0); const phys=p.components['runner-physics']; if (phys){ phys.targetLane=1; phys.velY=0; } }
       }
 
-      /* ===== Build obstacles faithfully (programmatic from original) ===== */
-      function buildObstacles() {
-        const scene = q('a-scene');
+      /* ===== Boot ===== */
+      document.addEventListener('DOMContentLoaded', ()=>{
+        buildTunnel();
 
-        // Room panels (double-sided)
-        ['-10 5 0','0 5 -10','10 5 0','0 5 10','0 -5 0'].forEach(p => {
-          const e = document.createElement('a-box');
-          e.setAttribute('position', p);
-          e.setAttribute('scale', '10 10 10');
-          e.setAttribute('material', 'color: #5ed4ff; side: double');
-          scene.appendChild(e);
+        // Audio unlock
+        bindClick('#enterArk', ()=>{
+          try{ if (AFRAME.audioContext?.state==='suspended') AFRAME.audioContext.resume(); }catch(e){}
+          play('#song2'); play('#click');
         });
 
-        // Moving “tunnel” panels
-        const tunnel = document.createElement('a-entity');
-        tunnel.setAttribute('id', 'tunnel');
-        tunnel.setAttribute('position', '-2500 15 0');
-        const t1 = document.createElement('a-box'); t1.setAttribute('scale', '500 10 10'); t1.setAttribute('position','0 10 0'); t1.setAttribute('material', 'color: #1f4959; side: double');
-        const t2 = document.createElement('a-box'); t2.setAttribute('scale', '500 30 10'); t2.setAttribute('position','0 0 -10'); t2.setAttribute('material', 'color: #1f4959; side: double');
-        const t3 = document.createElement('a-box'); t3.setAttribute('scale', '500 30 10'); t3.setAttribute('position','0 0 10'); t3.setAttribute('material', 'color: #1f4959; side: double');
-        const tAnim = document.createElement('a-animation'); tAnim.setAttribute('begin', 'start1'); tAnim.setAttribute('attribute', 'position'); tAnim.setAttribute('to', '2500 15 0'); tAnim.setAttribute('dur', '100000'); tAnim.setAttribute('easing', 'linear'); tAnim.setAttribute('repeat', 'indefinite');
-        tunnel.appendChild(t1); tunnel.appendChild(t2); tunnel.appendChild(t3); tunnel.appendChild(tAnim);
-        scene.appendChild(tunnel);
-
-        // Scrolling wall clusters
-        const move = document.createElement('a-entity'); move.setAttribute('id','move'); move.setAttribute('position','-1000 0 0');
-        const moveAnim = document.createElement('a-animation'); moveAnim.setAttribute('attribute','position'); moveAnim.setAttribute('dur','20000'); moveAnim.setAttribute('repeat','indefinite'); moveAnim.setAttribute('easing','linear'); moveAnim.setAttribute('to','1000 0 0');
-        move.appendChild(moveAnim);
-        scene.appendChild(move);
-
-        // Level 1 waves — exact colors/lanes preserved via mapping
-        for (const w of world.waves) {
-          const color = world.colors[w.start];
-          for (const l of w.lanes) {
-            if (l === undefined) continue;
-            spawnScrollingBlock(scene, color, l, w.delay, 20000);
-          }
-        }
-
-        // Gate-local falling blocks (derived from *_x “from 0 500 0 to 0 0 0”)
-        // start2: purple lanes 0/3/-3 staggered
-        spawnFallingBlock(scene, world.colors.start2, 0, 'start2', 3000);
-        spawnFallingBlock(scene, world.colors.start2, 3, 'start2', 2000);
-        spawnFallingBlock(scene, world.colors.start2, -3, 'start2', 4000);
-        // start3: orange
-        spawnFallingBlock(scene, world.colors.start3, 0, 'start3', 3000);
-        spawnFallingBlock(scene, world.colors.start3, 3, 'start3', 2000);
-        spawnFallingBlock(scene, world.colors.start3, -3, 'start3', 4000);
-        // start4: blue
-        spawnFallingBlock(scene, world.colors.start4, 0, 'start4', 3000);
-        spawnFallingBlock(scene, world.colors.start4, 3, 'start4', 2000);
-        spawnFallingBlock(scene, world.colors.start4, -3, 'start4', 4000);
-
-        // Level 5 rotating diagonals (matching original delay cadence)
-        // Left lane sets (z:-3) move from -500 250 -15 to 500 -248 12
-        [12000,16000,23000,27000,33000,39000].forEach(d => spawnRotatingDiagonal(scene, -3, d, '-500 250 -15', '500 -248 12'));
-        // Right lane sets (z:3) move from -500 250 15 to 500 -248 -12
-        [11000,17000,22000,29000,35000,38000].forEach(d => spawnRotatingDiagonal(scene, 3, d, '-500 250 15', '500 -248 -12'));
-      }
-
-      /* ===== Init after assets are ready ===== */
-      document.addEventListener('DOMContentLoaded', () => {
-        // Audio unlock: single intro text button (no overlapping with Start Game image)
-        const enterArk = q('#enterArk');
-        bindClick('#enterArk', () => {
-          try {
-            if (AFRAME.audioContext && AFRAME.audioContext.state === 'suspended') AFRAME.audioContext.resume();
-          } catch(e) {}
-          playSound('#song2');
-          playSound('#click');
-        });
-
-        // Start game: emits start1, sets up timers, sequences, and scoring
-        bindClick('#startcc', () => {
-          playSound('#begin3');
-          emitToTargets('start1', ['#room','#floor','#left','#right','#tunnel','#move','#target','#startcc']);
-          startLevelTimers();
-          wireMusicProgression();
-          scoring = true;
-
-          // Countdown visuals (three-two-one)
-          const tb = q('#threeb'), tw = q('#twob'), ob = q('#oneb');
-          if (tb && tw && ob) {
-            tb.setAttribute('position', '0 1 -1.62');
-            setTimeout(()=>tb.setAttribute('position','0 -100 0'),1000);
-            setTimeout(()=>tw.setAttribute('position','0 1 -1.62'),1000);
-            setTimeout(()=>tw.setAttribute('position','0 -100 0'),2000);
-            setTimeout(()=>ob.setAttribute('position','0 1 -1.62'),2000);
-            setTimeout(()=>ob.setAttribute('position','0 -100 0'),3000);
-          }
+        // Start game
+        bindClick('#startcc', ()=>{
+          play('#begin3');
+          emit('start1',['#target','#tunnel','#floor','#left','#right']);
+          wireMusic();
+          startGates();
+          scoring=true; gameStarted=true;
+          // countdown
+          const tb=q('#threeb'), tw=q('#twob'), ob=q('#oneb');
+          tb.setAttribute('position','0 1 -1.62'); setTimeout(()=>tb.setAttribute('position','0 -100 0'),1000);
+          setTimeout(()=>{ tw.setAttribute('position','0 1 -1.62'); setTimeout(()=>tw.setAttribute('position','0 -100 0'),1000); },1000);
+          setTimeout(()=>{ ob.setAttribute('position','0 1 -1.62'); setTimeout(()=>ob.setAttribute('position','0 -100 0'),1000); },2000);
         });
 
         // Lane buttons
-        bindClick('#leftT', () => { const p = q('#player'); const phys = p?.components?.['runner-physics']; if (phys) phys.targetLane = 0; });
-        bindClick('#centerT', () => { const p = q('#player'); const phys = p?.components?.['runner-physics']; if (phys) phys.targetLane = 1; });
-        bindClick('#rightT', () => { const p = q('#player'); const phys = p?.components?.['runner-physics']; if (phys) phys.targetLane = 2; });
+        bindClick('#leftT', ()=>{ const p=q('#player'); const phys=p?.components?.['runner-physics']; if(phys) phys.targetLane=0; });
+        bindClick('#centerT', ()=>{ const p=q('#player'); const phys=p?.components?.['runner-physics']; if(phys) phys.targetLane=1; });
+        bindClick('#rightT', ()=>{ const p=q('#player'); const phys=p?.components?.['runner-physics']; if(phys) phys.targetLane=2; });
 
         // Jump
-        bindClick('#jumpb', () => { const p = q('#player'); const phys = p?.components?.['runner-physics']; if (phys) phys.jump(); });
+        bindClick('#jumpb', ()=>{ const p=q('#player'); p?.components?.['runner-physics']?.jump(); });
 
         // Mute toggle
-        bindClick('#songT', () => {
-          const ids = ['#song','#song2','#song3','#song4','#song5','#song6','#begin3','#gameovers','#lazer','#click','#click2','#hah1','#hah2','#hah3'];
-          const muted = (q('#song').getAttribute('sound')||'').includes('volume: 0');
-          ids.forEach(sel => {
-            const el = q(sel);
-            if (el?.components?.sound) {
-              const base = el.components.sound.data.volume || 0.3;
-              el.setAttribute('sound', `src: ${el.components.sound.data.src}; loop: ${el.components.sound.data.loop}; autoplay: ${el.components.sound.data.autoplay}; volume: ${muted ? base : 0}`);
-            }
+        bindClick('#songT', ()=>{
+          const ids=['#song','#song2','#song3','#song4','#song5','#song6','#begin3','#gameovers','#lazer','#click','#click2','#hah1','#hah2','#hah3'];
+          const muted = (q('#song').components?.sound?.data?.volume===0);
+          ids.forEach(sel=>{
+            const el=q(sel); if(!el?.components?.sound) return;
+            const data=el.components.sound.data;
+            el.setAttribute('sound', `src: ${data.src}; loop: ${data.loop}; autoplay: ${data.autoplay}; volume: ${muted ? (data.volume||0.3) : 0}`);
           });
         });
 
-        // Lobby / Join clicks
-        bindClick('#lobbybtn', () => playSound('#click2'));
-        bindClick('#joinsm', () => playSound('#click2'));
-        bindClick('#joinh', () => playSound('#click2'));
+        // Lobby / Return to Lobby: full reset + intro music
+        bindClick('#lobbybtn', ()=>{ play('#click2'); hardReset(true); });
+        bindClick('#joinsm',   ()=>{ play('#click2'); });
+        bindClick('#joinh',    ()=>{ play('#click2'); });
 
-        // Reset
-        bindClick('#resetb', () => reset());
+        // Reset button (game over)
+        bindClick('#resetb', ()=>{ hardReset(false); });
 
-        // Score ticker (replacement for Altspace counter container)
-        setInterval(() => {
-          if (!scoring) return;
-          score += 10;
-          setText('#scoreshow', String(score));
-        }, 2000);
+        // Scoring tick
+        setInterval(()=>{ if (scoring){ score+=10; setText('#scoreshow', String(score)); } },2000);
 
         // Boss laugh loop
-        setInterval(() => { if (boss) playSound('#hah1'); }, 25000);
+        setInterval(()=>{ if(boss) play('#hah1'); },25000);
 
-        // Build obstacle geometry and refresh collider list
-        buildObstacles();
-        const player = q('#player'); player.components['runner-physics'].refreshObstacles();
+        // Obstacles list hook
+        q('#player')?.components?.['runner-physics']?.refreshObstacles();
       });
     </script>
   </head>
@@ -434,7 +355,6 @@
   <body>
     <a-scene renderer="colorManagement: true; physicallyCorrectLights: true" background="color: #000">
       <a-assets>
-        <!-- UI images -->
         <img id="leftp" src="left.jpg">
         <img id="centerp" src="center.jpg">
         <img id="rightp" src="right.jpg">
@@ -453,101 +373,90 @@
         <img id="p1" src="1.jpg">
         <img id="p2" src="2.jpg">
         <img id="p3" src="3.jpg">
-
-        <!-- Boss model assets (render with default color; ignore MTL to avoid material override) -->
         <a-asset-item id="run-obj" src="run.obj"></a-asset-item>
       </a-assets>
 
-      <!-- Player and camera (WASD + look-controls + raycaster whitelist) -->
+      <!-- Player -->
       <a-entity id="player" position="0 0.8 0" runner-physics>
-        <a-entity id="playerCam" camera look-controls wasd-controls cursor-whitelist>
-          <!-- HUD arranged neatly along bottom (only Enter Ark is text; rest are image buttons) -->
+        <a-entity camera look-controls wasd-controls cursor-whitelist>
           <a-entity id="HUD" hud-anchor>
-            <!-- Intro audio unlock (text) -->
-            <a-plane id="enterArk" width="0.7" height="0.2" position="-0.95 0.02 -1.05" material="color: #2c3e50; side: double" class="ui"></a-plane>
-            <a-entity position="-0.95 0.02 -1.04" text="value: Enter Ark; color: #ffffff; align: center; width: 3"></a-entity>
-
-            <!-- Start game (image) -->
-            <a-plane id="startcc" src="#startp" width="0.7" height="0.22" position="-0.2 0.02 -1.05" material="side: double" class="ui"></a-plane>
-
-            <!-- Mute (image) -->
+            <!-- Intro unlock (text only) -->
+            <a-plane id="enterArk" width="0.7" height="0.2" position="-0.95 0.02 -1.05" material="color:#2c3e50; side: double" class="ui"></a-plane>
+            <a-entity position="-0.95 0.02 -1.04" text="value: Enter Ark; color:#fff; align:center; width:3"></a-entity>
+            <!-- Start -->
+            <a-plane id="startcc" src="#startp" width="0.7" height="0.22" position="-0.20 0.02 -1.05" material="side: double" class="ui"></a-plane>
+            <!-- Mute -->
             <a-plane id="songT" src="#mutep" width="0.35" height="0.2" position="0.55 0.02 -1.05" material="side: double" class="ui"></a-plane>
-
-            <!-- Score card + text aligned -->
+            <!-- Score card + text -->
             <a-plane id="scoreshow3" src="#scorep" width="0.65" height="0.22" position="0.95 0.02 -1.05" material="side: double" class="ui"></a-plane>
             <a-entity id="scoreshow" position="1.05 0.02 -1.04" text="value: 0; color: #6FF3E8; align: left; width: 6"></a-entity>
-
-            <!-- Lane buttons (image) -->
+            <!-- Lane buttons -->
             <a-plane id="leftT" src="#leftp" width="0.25" height="0.18" position="-1.05 -0.22 -1.05" material="side: double" class="ui"></a-plane>
             <a-plane id="centerT" src="#centerp" width="0.25" height="0.18" position="-0.75 -0.22 -1.05" material="side: double" class="ui"></a-plane>
             <a-plane id="rightT" src="#rightp" width="0.25" height="0.18" position="-0.45 -0.22 -1.05" material="side: double" class="ui"></a-plane>
-
-            <!-- Jump (image) -->
+            <!-- Jump -->
             <a-plane id="jumpb" src="#jumpp" width="0.35" height="0.2" position="0.20 -0.22 -1.05" material="side: double" class="ui"></a-plane>
-
-            <!-- Lobby / Join (images) -->
+            <!-- Lobby / Join -->
             <a-plane id="lobbybtn" src="#lobbyp" width="0.55" height="0.18" position="0.55 -0.22 -1.05" material="side: double" class="ui"></a-plane>
             <a-plane id="joinsm" src="#joinsmallp" width="0.24" height="0.18" position="0.95 -0.22 -1.05" material="side: double" class="ui"></a-plane>
-            <!-- Big Join (image) pinned near top for original vibe -->
             <a-plane id="joinh" src="#joinp" width="0.7" height="0.2" position="0.8 0.12 -1.05" material="side: double" class="ui"></a-plane>
           </a-entity>
         </a-entity>
       </a-entity>
 
-      <!-- Directional light (modern; no legacy lights) -->
-      <a-light type="directional" intensity="1.5" position="150 15 15"></a-light>
+      <!-- Lighting -->
+      <a-light type="directional" intensity="1.6" position="150 25 15"></a-light>
 
-      <!-- Floor and side planes (double-sided to prevent invisibility) -->
-      <a-plane id="floor" position="0 0 0" rotation="-90 0 0" width="1500" height="10" material="color: #5ed4ff; side: double"></a-plane>
-      <a-plane id="left" position="0 22 -13" rotation="-20 0 0" width="1500" height="50" material="color: #5ed4ff; side: double"></a-plane>
-      <a-plane id="right" position="0 22 13" rotation="-160 0 0" width="1500" height="50" material="color: #5ed4ff; side: double"></a-plane>
+      <!-- Ground and side planes (visible both sides) -->
+      <a-plane id="floor" position="0 0 0" rotation="-90 0 0" width="1500" height="10" material="color:#5ed4ff; side: double"></a-plane>
+      <a-plane id="left"  position="0 22 -13" rotation="-20 0 0" width="1500" height="50" material="color:#5ed4ff; side: double"></a-plane>
+      <a-plane id="right" position="0 22 13" rotation="-160 0 0" width="1500" height="50" material="color:#5ed4ff; side: double"></a-plane>
 
-      <!-- Countdown images -->
+      <!-- Rebuilt tunnel -->
+      <a-entity id="tunnel"></a-entity>
+
+      <!-- Countdown -->
       <a-plane id="threeb" src="#p3" position="0 -100 -1.62" width="1" height="1" material="side: double"></a-plane>
-      <a-plane id="twob" src="#p2" position="0 -100 -1.62" width="1" height="1" material="side: double"></a-plane>
-      <a-plane id="oneb" src="#p1" position="0 -100 -1.62" width="1" height="1" material="side: double"></a-plane>
+      <a-plane id="twob"   src="#p2" position="0 -100 -1.62" width="1" height="1" material="side: double"></a-plane>
+      <a-plane id="oneb"   src="#p1" position="0 -100 -1.62" width="1" height="1" material="side: double"></a-plane>
 
-      <!-- Scoreboard wall (double-sided planes; score text aligned left to match card) -->
+      <!-- Scoreboard -->
       <a-entity id="cube1" position="10 0 0">
-        <a-plane width="6" height="4.5" position="0 13 -4.9" material="src: #arkwall; side: double"></a-plane>
-        <a-plane width="1.25" height="2" position="0 12 4.9" rotation="0 180 0" material="src: #credit; side: double"></a-plane>
-        <a-plane width="8" height="8" position="-14.9 15.5 0" rotation="0 90 0" material="src: #scoreboardp; side: double"></a-plane>
-        <a-entity id="lastscore" position="-14.8 16.75 0" rotation="0 90 0" text="value: 0; color: #6FF3E8; width: 6"></a-entity>
-        <a-entity id="lastscore2" position="-14.8 15.75 0" rotation="0 90 0" text="value: 0; color: #6FF3E8; width: 6"></a-entity>
-        <a-entity id="lastscore3" position="-14.8 14.75 0" rotation="0 90 0" text="value: 0; color: #6FF3E8; width: 6"></a-entity>
-        <a-entity id="lastscore4" position="-14.8 13.75 0" rotation="0 90 0" text="value: 0; color: #6FF3E8; width: 6"></a-entity>
-        <a-entity id="lastscore5" position="-14.8 12.75 0" rotation="0 90 0" text="value: 0; color: #6FF3E8; width: 6"></a-entity>
+        <a-plane width="6" height="4.5" position="0 13 -4.9" material="src:#arkwall; side: double"></a-plane>
+        <a-plane width="1.25" height="2" position="0 12 4.9" rotation="0 180 0" material="src:#credit; side: double"></a-plane>
+        <a-plane width="8" height="8" position="-14.9 15.5 0" rotation="0 90 0" material="src:#scoreboardp; side: double"></a-plane>
+        <a-entity id="lastscore"  position="-14.8 16.75 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
+        <a-entity id="lastscore2" position="-14.8 15.75 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
+        <a-entity id="lastscore3" position="-14.8 14.75 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
+        <a-entity id="lastscore4" position="-14.8 13.75 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
+        <a-entity id="lastscore5" position="-14.8 12.75 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
       </a-entity>
 
-      <!-- Music and SFX (A-Frame sound components; autoplay off except intro) -->
-      <a-entity id="song" sound="src: url(arktheme.wav); loop: true; autoplay: false; volume: 0.2"></a-entity>
-      <a-entity id="song2" sound="src: url(arkpregame.wav); loop: true; autoplay: false; volume: 0.2"></a-entity>
-      <a-entity id="song3" sound="src: url(arktheme2.wav); loop: true; autoplay: false; volume: 0.2"></a-entity>
-      <a-entity id="song4" sound="src: url(arktheme3.wav); loop: true; autoplay: false; volume: 0.2"></a-entity>
-      <a-entity id="song5" sound="src: url(arktheme4.wav); loop: true; autoplay: false; volume: 0.2"></a-entity>
-      <a-entity id="song6" sound="src: url(level5.wav); loop: true; autoplay: false; volume: 0.3"></a-entity>
+      <!-- Sounds -->
+      <a-entity id="song"   sound="src:url(arktheme.wav);   loop:true; autoplay:false; volume:0.2"></a-entity>
+      <a-entity id="song2"  sound="src:url(arkpregame.wav); loop:true; autoplay:false; volume:0.2"></a-entity>
+      <a-entity id="song3"  sound="src:url(arktheme2.wav);  loop:true; autoplay:false; volume:0.2"></a-entity>
+      <a-entity id="song4"  sound="src:url(arktheme3.wav);  loop:true; autoplay:false; volume:0.2"></a-entity>
+      <a-entity id="song5"  sound="src:url(arktheme4.wav);  loop:true; autoplay:false; volume:0.2"></a-entity>
+      <a-entity id="song6"  sound="src:url(level5.wav);     loop:true; autoplay:false; volume:0.3"></a-entity>
 
-      <a-entity id="hah1" sound="src: url(ha1.wav); loop: false; autoplay: false; volume: 0.3"></a-entity>
-      <a-entity id="hah2" sound="src: url(ha2.wav); loop: false; autoplay: false; volume: 0.3"></a-entity>
-      <a-entity id="hah3" sound="src: url(ha3.wav); loop: false; autoplay: false; volume: 0.3"></a-entity>
-      <a-entity id="load" sound="src: url(load.wav); loop: false; autoplay: false; volume: 0.7"></a-entity>
-      <a-entity id="gameovers" sound="src: url(gameover.wav); loop: false; autoplay: false; volume: 1"></a-entity>
-      <a-entity id="lazer" sound="src: url(lazer.wav); loop: false; autoplay: false; volume: 0.3"></a-entity>
-      <a-entity id="click" sound="src: url(click.wav); loop: false; autoplay: false; volume: 0.3"></a-entity>
-      <a-entity id="click2" sound="src: url(click.wav); loop: false; autoplay: false; volume: 0.3"></a-entity>
+      <a-entity id="hah1" sound="src:url(ha1.wav); loop:false; autoplay:false; volume:0.3"></a-entity>
+      <a-entity id="hah2" sound="src:url(ha2.wav); loop:false; autoplay:false; volume:0.3"></a-entity>
+      <a-entity id="hah3" sound="src:url(ha3.wav); loop:false; autoplay:false; volume:0.3"></a-entity>
+      <a-entity id="begin3" sound="src:url(begin.wav); loop:false; autoplay:false; volume:0.3"></a-entity>
+      <a-entity id="gameovers" sound="src:url(gameover.wav); loop:false; autoplay:false; volume:1"></a-entity>
+      <a-entity id="click"  sound="src:url(click.wav);  loop:false; autoplay:false; volume:0.3"></a-entity>
+      <a-entity id="click2" sound="src:url(click.wav);  loop:false; autoplay:false; volume:0.3"></a-entity>
+      <a-entity id="lazer"  sound="src:url(lazer.wav);  loop:false; autoplay:false; volume:0.3"></a-entity>
 
-      <!-- Boss model: render with default material color, ignore MTL -->
-      <a-entity id="boss" position="-250 -1000 0" rotation="0 90 0" scale="50 50 50"
-                obj-model="obj: #run-obj"
-                material="color: #cccccc; side: double">
-        <a-animation begin="start5" attribute="position" dur="7500" from="0 -1000 0" to="-250 0 0" fill="forwards"></a-animation>
-      </a-entity>
+      <!-- Boss (rise animation recreated) -->
+      <a-entity id="boss" position="0 -100 0" rotation="0 90 0" scale="50 50 50" obj-model="obj: #run-obj" material="color:#cccccc; side: double"></a-entity>
 
-      <!-- Target entity for music progression events -->
+      <!-- Target for gate events -->
       <a-entity id="target"></a-entity>
 
-      <!-- Reset button (image) -->
-      <a-plane id="resetb" src="#resetp" width="0.7" height="0.2" position="13 -1000 0" rotation="0 -90 0" material="side: double" class="ui"></a-plane>
+      <!-- Reset button -->
+      <a-plane id="resetb" src="#resetp" width="0.7" height="0.2" position="13 -2 0" rotation="0 -90 0" material="side: double" class="ui"></a-plane>
 
       <!-- Sky -->
       <a-sky color="black" radius="1050"></a-sky>
