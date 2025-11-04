@@ -2,20 +2,21 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <title>Ark (Browser Edition, near 1:1)</title>
+    <title>Ark (Browser Edition — near 1:1)</title>
+    <!-- A-Frame (modern lighting; no legacy) -->
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
 
     <script>
-      // ===== Utilities =====
+      // ========= Utilities =========
       function isEntity(el) {
         return !!(el && el.object3D && typeof el.emit === 'function');
       }
       function emitToTargets(type, targets) {
-        targets.forEach(sel => {
+        for (const sel of targets) {
           const el = document.querySelector(sel);
-          if (!isEntity(el)) return;
+          if (!isEntity(el)) continue;
           el.emit(type, null, false);
-        });
+        }
       }
       function setText(el, value, color = '#6FF3E8') {
         if (!el) return;
@@ -29,17 +30,23 @@
         const el = document.querySelector(sel);
         if (el?.components?.sound) el.components.sound.pauseSound();
       }
+      function setupUI(el, handler) {
+        if (!el) return;
+        el.classList.add('ui');
+        el.addEventListener('click', handler);
+      }
 
-      // ===== Camera cursor with whitelist =====
+      // ========= Camera cursor with whitelist =========
       AFRAME.registerComponent('cursor-whitelist', {
         init() {
           const cam = this.el;
           cam.setAttribute('cursor', 'rayOrigin: mouse; fuse: false');
+          // Whitelist only UI elements for raycaster (fix performance warning)
           cam.setAttribute('raycaster', 'objects: .ui');
         }
       });
 
-      // ===== HUD anchored to camera bottom =====
+      // ========= HUD anchored to camera bottom =========
       AFRAME.registerComponent('hud-anchor', {
         schema: {
           offset: {type: 'vec3', default: {x: 0, y: -0.48, z: -1.02}},
@@ -52,7 +59,7 @@
         }
       });
 
-      // ===== Runner physics-lite (gravity, jump, lanes, collisions) =====
+      // ========= Runner physics-lite (WASD + arrows + gravity + jump + lanes + collisions) =========
       AFRAME.registerComponent('runner-physics', {
         schema: {
           gravity: {type: 'number', default: -9.8},
@@ -64,17 +71,26 @@
           this.size = new THREE.Vector3(0.6, 1.6, 0.6);
           this.playerBox = new THREE.Box3();
           this.grounded = true;
-          this.targetLane = 1;
+          this.targetLane = 1; // center
           this.laneX = [-1.5, 0, 1.5];
           this.laneZ = [0, 0, 0];
           this.obstacles = [];
           this.refreshObstacles();
 
-          // Keyboard arrows + space
+          // Keyboard arrows + space + WASD lateral
           window.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowLeft') this.targetLane = Math.max(0, this.targetLane - 1), emitToTargets('movetp', ['#leftstop', '#centerstop', '#rightstop'][this.targetLane] ? [ ['#leftstop', '#centerstop', '#rightstop'][this.targetLane] ] : []);
-            if (e.key === 'ArrowRight') this.targetLane = Math.min(2, this.targetLane + 1), emitToTargets('movetp', ['#leftstop', '#centerstop', '#rightstop'][this.targetLane] ? [ ['#leftstop', '#centerstop', '#rightstop'][this.targetLane] ] : []);
-            if (e.key === ' ') this.requestJump(), emitToTargets('jump', ['#jumpa', '#jumpb']);
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+              this.targetLane = Math.max(0, this.targetLane - 1);
+              emitToTargets('movetp', [['#leftstop','#centerstop','#rightstop'][this.targetLane]]);
+            }
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+              this.targetLane = Math.min(2, this.targetLane + 1);
+              emitToTargets('movetp', [['#leftstop','#centerstop','#rightstop'][this.targetLane]]);
+            }
+            if (e.key === ' ' || e.key === 'Spacebar') {
+              this.requestJump();
+              emitToTargets('jump', ['#jumpa','#jumpb']);
+            }
           });
 
           // Map lane clicks to target lane
@@ -154,14 +170,7 @@
         }
       });
 
-      // ===== HUD click helper (whitelisted raycaster) =====
-      function setupUI(el, handler) {
-        if (!el) return;
-        el.classList.add('ui');
-        el.addEventListener('click', handler);
-      }
-
-      // ===== Gamepad Controller =====
+      // ========= Gamepad Controller =========
       const GamepadController = {
         deadZone: 0.25,
         prevButtons: [],
@@ -204,15 +213,15 @@
         setLane(idx) {
           if (idx === this.laneIndex) return;
           this.laneIndex = idx;
-          const stopIds = ['#leftstop', '#centerstop', '#rightstop'];
-          emitToTargets('movetp', [stopIds[idx]]);
+          const stops = ['#leftstop', '#centerstop', '#rightstop'];
+          emitToTargets('movetp', [stops[idx]]);
         },
         jump() {
           const player = document.querySelector('#player');
           const phys = player?.components?.['runner-physics'];
           if (!phys) return;
           phys.requestJump();
-          emitToTargets('jump', ['#jumpa', '#jumpb']);
+          emitToTargets('jump', ['#jumpa','#jumpb']);
         },
         toggleMute() {
           this.muted = !this.muted;
@@ -227,37 +236,58 @@
         }
       };
 
-      // ===== Flow helpers =====
+      // ========= Level flow (near 1:1 music progression and boss) =========
       function beginLevelSequence() {
-        // start1 triggers drop + main theme
+        // start1 triggers room drop + main theme
         emitToTargets('start1', ['#room','#floor','#startcc','#tunnel','#cube1','#move','#start2go','#start3go','#start4go','#start5go','#target','#boss']);
         playSound('#begin3');
         ['#song3','#song4','#song5','#song6','#song2'].forEach(pauseSound);
         playSound('#song');
 
-        // timed gates: when each seq anim completes, emit next start event on #target
+        // Guard: ensure sequencers exist before wiring
         const g2 = document.querySelector('#start2go');
         const g3 = document.querySelector('#start3go');
         const g4 = document.querySelector('#start4go');
         const g5 = document.querySelector('#start5go');
+        const target = document.querySelector('#target');
+        if (!g2 || !g3 || !g4 || !g5 || !target) return;
 
         g2.addEventListener('animationcomplete', () => emitToTargets('start2', ['#target']), {once:true});
         g3.addEventListener('animationcomplete', () => emitToTargets('start3', ['#target']), {once:true});
         g4.addEventListener('animationcomplete', () => emitToTargets('start4', ['#target']), {once:true});
         g5.addEventListener('animationcomplete', () => emitToTargets('start5', ['#target']), {once:true});
 
-        // music switches per original
-        const target = document.querySelector('#target');
-        target.addEventListener('start2', () => { playSound('#hah1'); ['#song','#song2','#song4','#song5','#song6'].forEach(pauseSound); playSound('#song3'); }, {once:true});
-        target.addEventListener('start3', () => { playSound('#hah2'); ['#song','#song2','#song3','#song5','#song6'].forEach(pauseSound); playSound('#song4'); }, {once:true});
-        target.addEventListener('start4', () => { playSound('#hah3'); ['#song','#song2','#song3','#song4','#song6'].forEach(pauseSound); playSound('#song5'); }, {once:true});
-        target.addEventListener('start5', () => { playSound('#hah1'); ['#song','#song2','#song3','#song4','#song5'].forEach(pauseSound); playSound('#song6'); boss = true; setTimeout(()=>playSound('#hah1'),4500); setTimeout(()=>playSound('#hah2'),4500); setTimeout(()=>playSound('#hah3'),4500); }, {once:true});
+        target.addEventListener('start2', () => {
+          playSound('#hah1');
+          ['#song','#song2','#song4','#song5','#song6'].forEach(pauseSound);
+          playSound('#song3');
+        }, {once:true});
+        target.addEventListener('start3', () => {
+          playSound('#hah2');
+          ['#song','#song2','#song3','#song5','#song6'].forEach(pauseSound);
+          playSound('#song4');
+        }, {once:true});
+        target.addEventListener('start4', () => {
+          playSound('#hah3');
+          ['#song','#song2','#song3','#song4','#song6'].forEach(pauseSound);
+          playSound('#song5');
+        }, {once:true});
+        target.addEventListener('start5', () => {
+          playSound('#hah1');
+          ['#song','#song2','#song3','#song4','#song5'].forEach(pauseSound);
+          playSound('#song6');
+          boss = true;
+          setTimeout(()=>playSound('#hah1'),4500);
+          setTimeout(()=>playSound('#hah2'),4500);
+          setTimeout(()=>playSound('#hah3'),4500);
+        }, {once:true});
       }
     </script>
   </head>
 
   <body>
-    <a-scene background="color: #000">
+    <!-- Scene: turn on physicallyCorrectLights to avoid deprecated legacy lights -->
+    <a-scene renderer="colorManagement: true; physicallyCorrectLights: true" background="color: #000">
 
       <a-assets>
         <img id="leftp" src="left.jpg">
@@ -282,73 +312,61 @@
         <a-asset-item id="run-mtl" src="run.mtl"></a-asset-item>
       </a-assets>
 
-      <!-- Player and camera -->
+      <!-- Player and camera (WASD + mouse look) -->
       <a-entity id="player" position="0 0.8 0" runner-physics>
-        <a-entity id="playerCam" camera look-controls cursor-whitelist>
-          <!-- HUD anchored and neatly arranged across bottom -->
+        <a-entity id="playerCam" camera look-controls wasd-controls cursor-whitelist>
+          <!-- HUD anchored and neatly arranged across bottom (image buttons restored) -->
           <a-entity id="HUD" hud-anchor>
 
-            <!-- Enter Ark (text button for audio unlock) -->
-            <a-plane id="enterArk" width="0.7" height="0.2" position="-0.85 -0.02 -1.05"
+            <!-- Enter Ark (TEXT button ONLY for audio unlock) -->
+            <a-plane id="enterArk" width="0.7" height="0.2" position="-0.95 -0.02 -1.05"
                      material="color: #2c3e50; side: double" class="ui"></a-plane>
-            <a-entity position="-0.85 -0.02 -1.04" text="value: Enter Ark; color: #ffffff; align: center; width: 3"></a-entity>
+            <a-entity position="-0.95 -0.02 -1.04" text="value: Enter Ark; color: #ffffff; align: center; width: 3"></a-entity>
 
-            <!-- Start Game -->
-            <a-plane id="startcc" width="0.7" height="0.2" position="-0.15 -0.02 -1.05"
-                     material="color: #16a085; side: double" class="ui"
-                     animation__hide="property: position; to: -0.15 -1000 -1.05; dur: 2500; startEvents: start1"></a-plane>
-            <a-entity position="-0.15 -0.02 -1.04" text="value: Start Game; color: #ffffff; align: center; width: 3"></a-entity>
+            <!-- Start Game (IMAGE) -->
+            <a-plane id="startcc" src="#startp" width="0.7" height="0.2" position="-0.2 -0.02 -1.05"
+                     material="side: double" class="ui"
+                     animation__hide="property: position; to: -0.2 -1000 -1.05; dur: 2500; startEvents: start1"></a-plane>
 
-            <!-- Mute -->
-            <a-plane id="songT" width="0.35" height="0.2" position="0.55 -0.02 -1.05"
-                     material="color: #8e44ad; side: double" class="ui"></a-plane>
-            <a-entity position="0.55 -0.02 -1.04" text="value: Mute; color: #ffffff; align: center; width: 3"></a-entity>
+            <!-- Mute (IMAGE) -->
+            <a-plane id="songT" src="#mutep" width="0.35" height="0.2" position="0.55 -0.02 -1.05"
+                     material="side: double" class="ui"></a-plane>
 
-            <!-- Lane buttons -->
-            <a-plane id="leftT" width="0.25" height="0.18" position="-0.55 -0.22 -1.05"
-                     material="color: #34495e; side: double" class="ui"></a-plane>
-            <a-entity position="-0.55 -0.22 -1.04" text="value: Left; color: #ffffff; align: center; width: 3"></a-entity>
+            <!-- Lane buttons (IMAGE) -->
+            <a-plane id="leftT" src="#leftp" width="0.25" height="0.18" position="-0.55 -0.22 -1.05"
+                     material="side: double" class="ui"></a-plane>
+            <a-plane id="centerT" src="#centerp" width="0.25" height="0.18" position="-0.15 -0.22 -1.05"
+                     material="side: double" class="ui"></a-plane>
+            <a-plane id="rightT" src="#rightp" width="0.25" height="0.18" position="0.25 -0.22 -1.05"
+                     material="side: double" class="ui"></a-plane>
 
-            <a-plane id="centerT" width="0.25" height="0.18" position="-0.15 -0.22 -1.05"
-                     material="color: #34495e; side: double" class="ui"></a-plane>
-            <a-entity position="-0.15 -0.22 -1.04" text="value: Center; color: #ffffff; align: center; width: 3"></a-entity>
-
-            <a-plane id="rightT" width="0.25" height="0.18" position="0.25 -0.22 -1.05"
-                     material="color: #34495e; side: double" class="ui"></a-plane>
-            <a-entity position="0.25 -0.22 -1.04" text="value: Right; color: #ffffff; align: center; width: 3"></a-entity>
-
-            <!-- Jump -->
-            <a-plane id="jumpb" width="0.35" height="0.2" position="0.95 -0.22 -1.05"
-                     material="color: #e67e22; side: double" class="ui"
+            <!-- Jump (IMAGE) -->
+            <a-plane id="jumpb" src="#jumpp" width="0.35" height="0.2" position="0.95 -0.22 -1.05"
+                     material="side: double" class="ui"
                      animation__press="property: position; to: 0.95 -1000 -1.05; dur: 5000; startEvents: jump"></a-plane>
-            <a-entity position="0.95 -0.22 -1.04" text="value: Jump; color: #ffffff; align: center; width: 3"></a-entity>
 
-            <!-- Score label -->
-            <a-plane id="scoreshow3" width="0.65" height="0.22" position="0.95 -0.02 -1.05"
-                     material="color: #2c3e50; side: double" class="ui"></a-plane>
+            <!-- Score (IMAGE + text) -->
+            <a-plane id="scoreshow3" src="#scorep" width="0.65" height="0.22" position="0.95 -0.02 -1.05"
+                     material="side: double" class="ui"></a-plane>
             <a-entity id="scoreshow" position="1.05 -0.02 -1.04" text="value: 0; color: #6FF3E8; align: left; width: 4"></a-entity>
 
-            <!-- Lobby / Join (pinned) -->
-            <a-plane id="lobbybtn" width="0.55" height="0.18" position="-0.95 -0.22 -1.05"
-                     material="color: #2980b9; side: double" class="ui"></a-plane>
-            <a-entity position="-0.95 -0.22 -1.04" text="value: Lobby; color: #ffffff; align: center; width: 3"></a-entity>
+            <!-- Lobby / Join (IMAGES) -->
+            <a-plane id="lobbybtn" src="#lobbyp" width="0.55" height="0.18" position="-0.95 -0.22 -1.05"
+                     material="side: double" class="ui"></a-plane>
+            <a-plane id="joinsm" src="#joinsmallp" width="0.24" height="0.18" position="-0.95 0.08 -1.05"
+                     material="side: double" class="ui"></a-plane>
+            <a-plane id="lobbysm" src="#lobbysmallp" width="0.24" height="0.18" position="-0.95 -100 -1.05"
+                     material="side: double" class="ui"></a-plane>
 
-            <a-plane id="joinsm" width="0.24" height="0.18" position="-0.95 0.08 -1.05"
-                     material="color: #27ae60; side: double" class="ui"></a-plane>
-            <a-entity position="-0.95 0.08 -1.04" text="value: Join; color: #ffffff; align: center; width: 3"></a-entity>
-
-            <a-plane id="lobbysm" width="0.24" height="0.18" position="-0.95 -100 -1.05"
-                     material="color: #c0392b; side: double" class="ui"></a-plane>
-
-            <!-- Big Join (original behavior) -->
-            <a-plane id="joinh" width="0.7" height="0.2" position="0.8 0.12 -1.05"
-                     material="color: #27ae60; side: double" class="ui"></a-plane>
-            <a-entity position="0.8 0.12 -1.04" text="value: Join Game; color: #ffffff; align: center; width: 3"></a-entity>
+            <!-- Big Join (IMAGE) -->
+            <a-plane id="joinh" src="#joinp" width="0.7" height="0.2" position="0.8 0.12 -1.05"
+                     material="side: double" class="ui"></a-plane>
           </a-entity>
         </a-entity>
       </a-entity>
 
-      <a-light id="light1" type="directional" intensity="2.0" position="150 15 15"></a-light>
+      <!-- Lighting (non-legacy) -->
+      <a-light type="directional" intensity="2.0" position="150 15 15"></a-light>
 
       <!-- Lane markers -->
       <a-entity id="leftstop" position="-1.5 0 0"></a-entity>
@@ -380,7 +398,7 @@
                material="color: #5ed4ff; opacity: 1; side: double"
                animation__rise="property: position; to: 0 0 0; dur: 2500; startEvents: start1"></a-plane>
 
-      <!-- Tunnel -->
+      <!-- Tunnel (moving background) -->
       <a-entity id="tunnel" position="-2500 15 0"
                 animation__scroll="property: position; to: 2500 15 0; dur: 100000; easing: linear; loop: true">
         <a-box scale="500 10 10" position="0 10 0" material="color: #1f4959; side: double"></a-box>    
@@ -388,17 +406,17 @@
         <a-box scale="500 30 10" position="0 0 10" material="color: #1f4959; side: double"></a-box>
       </a-entity>
 
-      <!-- Moving wall set loop (from original) -->
+      <!-- Moving wall set loop -->
       <a-entity id="move" position="-1000 0 0"
                 animation__loop="property: position; to: 1000 0 0; dur: 20000; easing: linear; loop: true"></a-entity>
 
-      <!-- Sequencers -->
+      <!-- Sequencers (timed level gates) -->
       <a-entity id="start2go" position="0 -1000 -2010" animation__seq="property: position; to: 0 0 0; dur: 5000; delay: 50000; startEvents: start1"></a-entity>
       <a-entity id="start3go" position="200 -1000 -2010" animation__seq="property: position; to: 0 0 0; dur: 5000; delay: 100000; startEvents: start1"></a-entity>
       <a-entity id="start4go" position="400 -1000 -2010" animation__seq="property: position; to: 0 0 0; dur: 5000; delay: 150000; startEvents: start1"></a-entity>
       <a-entity id="start5go" position="600 -1000 -2010" animation__seq="property: position; to: 0 0 0; dur: 5000; delay: 200000; startEvents: start1"></a-entity>
 
-      <!-- Music (pregame: song2; progression: song→song3→song4→song5→song6) -->
+      <!-- Music -->
       <a-entity id="song" position="0 10 0" sound="src: url(arktheme.wav); loop: true; autoplay: false; volume: 0.2; poolSize: 4"></a-entity>
       <a-entity id="song2" position="0 10 0" sound="src: url(arkpregame.wav); loop: true; autoplay: false; volume: 0.2; poolSize: 4"></a-entity>
       <a-entity id="song3" position="0 10 0" sound="src: url(arktheme2.wav); loop: true; autoplay: false; volume: 0.2; poolSize: 4"></a-entity>
@@ -406,9 +424,8 @@
       <a-entity id="song5" position="0 10 0" sound="src: url(arktheme4.wav); loop: true; autoplay: false; volume: 0.2; poolSize: 4"></a-entity>
       <a-entity id="song6" position="0 10 0" sound="src: url(level5.wav); loop: true; autoplay: false; volume: 0.3; poolSize: 4"></a-entity>
 
-      <!-- Boss -->
+      <!-- Boss (note: .MTL provided; ignore material component properties per warning) -->
       <a-obj-model id="boss" scale="50 50 50" src="#run-obj" mtl="#run-mtl" position="-250 -1000 0" rotation="0 90 0"
-                   material="side: double"
                    animation__enter="property: position; from: 0 -1000 0; to: -250 0 0; dur: 7500; startEvents: start5"></a-obj-model>
 
       <!-- Scoreboard wall -->
@@ -434,77 +451,55 @@
       <a-entity id="click" position="0 15 0" sound="src: url(click.wav); loop: false; autoplay: false; volume: 0.3; poolSize: 4"></a-entity>
       <a-entity id="click2" position="0 15 0" sound="src: url(click.wav); loop: false; autoplay: false; volume: 0.3; poolSize: 4"></a-entity>
 
-      <!-- Obstacles: reconstructed samples -->
-      <!-- Block2 set -->
-      <a-entity id="block2x" position="0 0 0" class="obstacle">
-        <a-entity id="block2b" position="-1000 0 0">
-          <a-box scale="2 8 4" position="0 2 -3" material="color: #a041f4; side: double"></a-box>
-        </a-entity>
-        <a-entity animation__fall="property: position; from: 0 500 0; to: 0 0 0; dur: 2000; easing: linear; loop: true; startEvents: start2"></a-entity>
+      <!-- Obstacles (representative conversion; add all blocks from original with class="obstacle", side: double, and their animation timings) -->
+      <!-- Block2 trio (level 2) -->
+      <a-entity id="block2x" class="obstacle">
+        <a-box scale="2 8 4" position="0 2 -3" material="color: #a041f4; side: double"></a-box>
+        <a-entity animation__fall="property: position; from: 0 500 0; to: 0 0 0; dur: 2000; easing: linear; startEvents: start2"></a-entity>
+      </a-entity>
+      <a-entity id="block2x_mid" class="obstacle">
+        <a-box scale="2 8 4" position="0 2 0" material="color: #a041f4; side: double"></a-box>
+        <a-entity animation__fall="property: position; from: 0 500 0; to: 0 0 0; dur: 2000; easing: linear; startEvents: start2"></a-entity>
+      </a-entity>
+      <a-entity id="block2x_right" class="obstacle">
+        <a-box scale="2 8 4" position="0 2 3" material="color: #a041f4; side: double"></a-box>
+        <a-entity animation__fall="property: position; from: 0 500 0; to: 0 0 0; dur: 2000; easing: linear; startEvents: start2"></a-entity>
       </a-entity>
 
-      <!-- Block3 set -->
-      <a-entity id="block3x" position="0 0 0" class="obstacle">
-        <a-entity id="block3b" position="-1000 0 0">
-          <a-box scale="2 8 4" position="0 2 0" material="color: #f47c41; side: double"></a-box>
-        </a-entity>
-        <a-entity animation__fall="property: position; from: 0 500 0; to: 0 0 0; dur: 2000; easing: linear; loop: true; startEvents: start3"></a-entity>
+      <!-- Block3 trio (level 3) -->
+      <a-entity id="block3x_left" class="obstacle">
+        <a-box scale="2 8 4" position="0 2 -3" material="color: #f47c41; side: double"></a-box>
+        <a-entity animation__fall="property: position; from: 0 500 0; to: 0 0 0; dur: 2000; easing: linear; startEvents: start3"></a-entity>
+      </a-entity>
+      <a-entity id="block3x_mid" class="obstacle">
+        <a-box scale="2 8 4" position="0 2 0" material="color: #f47c41; side: double"></a-box>
+        <a-entity animation__fall="property: position; from: 0 500 0; to: 0 0 0; dur: 2000; easing: linear; startEvents: start3"></a-entity>
+      </a-entity>
+      <a-entity id="block3x_right" class="obstacle">
+        <a-box scale="2 8 4" position="0 2 3" material="color: #f47c41; side: double"></a-box>
+        <a-entity animation__fall="property: position; from: 0 500 0; to: 0 0 0; dur: 2000; easing: linear; startEvents: start3"></a-entity>
       </a-entity>
 
-      <a-entity id="block3x2" position="0 0 0" class="obstacle">
-        <a-entity id="block3b2" position="-1000 0 0">
-          <a-box scale="2 8 4" position="0 2 3" material="color: #f47c41; side: double"></a-box>
-        </a-entity>
-        <a-entity animation__fall="property: position; from: 0 500 0; to: 0 0 0; dur: 2000; easing: linear; loop: true; startEvents: start3"></a-entity>
+      <!-- Block4 trio (level 4) -->
+      <a-entity id="block4x_left" class="obstacle">
+        <a-box scale="2 8 4" position="0 2 -3" material="color: #4158f4; side: double"></a-box>
+        <a-entity animation__fall="property: position; from: 0 500 0; to: 0 0 0; dur: 2000; easing: linear; startEvents: start4"></a-entity>
+      </a-entity>
+      <a-entity id="block4x_mid" class="obstacle">
+        <a-box scale="2 8 4" position="0 2 0" material="color: #4158f4; side: double"></a-box>
+        <a-entity animation__fall="property: position; from: 0 500 0; to: 0 0 0; dur: 2000; easing: linear; startEvents: start4"></a-entity>
+      </a-entity>
+      <a-entity id="block4x_right" class="obstacle">
+        <a-box scale="2 8 4" position="0 2 3" material="color: #4158f4; side: double"></a-box>
+        <a-entity animation__fall="property: position; from: 0 500 0; to: 0 0 0; dur: 2000; easing: linear; startEvents: start4"></a-entity>
       </a-entity>
 
-      <a-entity id="block3x3" position="0 0 0" class="obstacle">
-        <a-entity id="block3b3" position="-1000 0 0">
-          <a-box scale="2 8 4" position="0 2 -3" material="color: #f47c41; side: double"></a-box>
-        </a-entity>
-        <a-entity animation__fall="property: position; from: 0 500 0; to: 0 0 0; dur: 2000; easing: linear; loop: true; startEvents: start3"></a-entity>
-      </a-entity>
-
-      <!-- Block4 set -->
-      <a-entity id="block4x" position="0 0 0" class="obstacle">
-        <a-entity id="block4b" position="-1000 0 0">
-          <a-box scale="2 8 4" position="0 2 0" material="color: #4158f4; side: double"></a-box>
-        </a-entity>
-        <a-entity animation__fall="property: position; from: 0 500 0; to: 0 0 0; dur: 2000; easing: linear; loop: true; startEvents: start4"></a-entity>
-      </a-entity>
-
-      <a-entity id="block4x2" position="0 0 0" class="obstacle">
-        <a-entity id="block4b2" position="-1000 0 0">
-          <a-box scale="2 8 4" position="0 2 3" material="color: #4158f4; side: double"></a-box>
-        </a-entity>
-        <a-entity animation__fall="property: position; from: 0 500 0; to: 0 0 0; dur: 2000; easing: linear; loop: true; startEvents: start4"></a-entity>
-      </a-entity>
-
-      <a-entity id="block4x3" position="0 0 0" class="obstacle">
-        <a-entity id="block4b3" position="-1000 0 0">
-          <a-box scale="2 8 4" position="0 2 -3" material="color: #4158f4; side: double"></a-box>
-        </a-entity>
-        <a-entity animation__fall="property: position; from: 0 500 0; to: 0 0 0; dur: 2000; easing: linear; loop: true; startEvents: start4"></a-entity>
-      </a-entity>
-
-      <!-- Block5 (blue rotating) set -->
-      <a-entity id="block5" position="0 -500 0" class="obstacle">
+      <!-- Block5 rotating (level 5) -->
+      <a-entity id="block5_left" class="obstacle">
         <a-box scale="3.25 8 3.25" position="0 2 -3" rotation="0 0 65" material="color: #0618a3; side: double"></a-box>
         <a-entity animation__move="property: position; from: -500 250 -15; to: 500 -248 12; dur: 10000; easing: linear; loop: true; startEvents: start5"></a-entity>
       </a-entity>
-
-      <a-entity id="block5b" position="0 -500 0" class="obstacle">
-        <a-box scale="3.25 8 3.25" position="0 2 3" rotation="0 0 65" material="color: #0618a3; side: double"></a-box>
-        <a-entity animation__move="property: position; from: -500 250 15; to: 500 -248 -12; dur: 10000; easing: linear; loop: true; startEvents: start5"></a-entity>
-      </a-entity>
-
-      <!-- Add remaining block5x repeating groups with increasing delays as in original -->
-      <a-entity id="block5x1" position="0 -500 0" class="obstacle">
-        <a-box scale="3.25 8 3.25" position="0 2 -3" rotation="0 0 65" material="color: #0618a3; side: double"></a-box>
-        <a-entity animation__move="property: position; from: -500 250 -15; to: 500 -248 12; dur: 10000; easing: linear; loop: true; startEvents: start5"></a-entity>
-      </a-entity>
-
-      <a-entity id="block5x2" position="0 -500 0" class="obstacle">
+      <a-entity id="block5_right" class="obstacle">
         <a-box scale="3.25 8 3.25" position="0 2 3" rotation="0 0 65" material="color: #0618a3; side: double"></a-box>
         <a-entity animation__move="property: position; from: -500 250 15; to: 500 -248 -12; dur: 10000; easing: linear; loop: true; startEvents: start5"></a-entity>
       </a-entity>
@@ -512,13 +507,13 @@
       <!-- Reset -->
       <a-entity id="resetb" position="13 -1000 0" scale="0.5 0.5 0.5" rotation="0 -90 0" class="ui"
                 animation__end="property: position; to: 0 -1000 0; dur: 5000; startEvents: gameend">
-        <a-plane width="0.7" height="0.2" material="color: #c0392b; side: double"></a-plane>
-        <a-entity text="value: Reset; color: #ffffff; align: center; width: 3"></a-entity>
+        <a-plane width="0.7" height="0.2" material="src: #resetp; side: double"></a-plane>
       </a-entity>
 
-      <a-sky radius="1050" color="black" material="side: double"></a-sky>
+      <a-sky radius="1050" color="black"></a-sky>
 
       <script>
+        // ========= Gameplay state =========
         var gameStarted = false;
         var score = 0;
         var scoring = false;
@@ -526,39 +521,43 @@
         var boss = false;
 
         document.addEventListener('DOMContentLoaded', () => {
+          // Initialize HUD text
           setText(document.querySelector('#scoreshow'), '0');
           ['#lastscore','#lastscore2','#lastscore3','#lastscore4','#lastscore5'].forEach(sel=>setText(document.querySelector(sel), '0'));
 
+          // Gamepad loop
           GamepadController.start();
 
-          // Enter Ark: resume audio context and start pregame music only
+          // Enter Ark: resume AudioContext and start pregame music ONLY
           setupUI(document.querySelector('#enterArk'), () => {
             try {
               if (AFRAME.audioContext && AFRAME.audioContext.state === 'suspended') {
                 AFRAME.audioContext.resume();
               }
             } catch(e) {}
-            playSound('#song2');
+            playSound('#song2'); // intro / pregame
             playSound('#click');
           });
 
-          // Start Game: full flow
+          // Start Game: full flow (start1 + progression + boss)
           setupUI(document.querySelector('#startcc'), () => {
             playSound('#click');
             gameStarted = true;
             scoring = true;
             beginLevelSequence();
 
-            // Countdown visuals (join)
+            // Countdown visuals (join-like)
             const tb = document.querySelector('#threeb');
             const tw = document.querySelector('#twob');
             const ob = document.querySelector('#oneb');
-            tb.setAttribute('position', '0 1 -1.62');
-            setTimeout(()=>tb.setAttribute('position','0 -100 0'),1000);
-            setTimeout(()=>tw.setAttribute('position','0 1 -1.62'),1000);
-            setTimeout(()=>tw.setAttribute('position','0 -100 0'),2000);
-            setTimeout(()=>ob.setAttribute('position','0 1 -1.62'),2000);
-            setTimeout(()=>ob.setAttribute('position','0 -100 0'),3000);
+            if (tb && tw && ob) {
+              tb.setAttribute('position', '0 1 -1.62');
+              setTimeout(()=>tb.setAttribute('position','0 -100 0'),1000);
+              setTimeout(()=>tw.setAttribute('position','0 1 -1.62'),1000);
+              setTimeout(()=>tw.setAttribute('position','0 -100 0'),2000);
+              setTimeout(()=>ob.setAttribute('position','0 1 -1.62'),2000);
+              setTimeout(()=>ob.setAttribute('position','0 -100 0'),3000);
+            }
           });
 
           // Mute
@@ -577,14 +576,13 @@
             emitToTargets('jump', ['#jumpa','#jumpb']);
           });
 
-          // Lobby / Join
-          setupUI(document.querySelector('#lobbybtn'), () => { playSound('#click2'); });
-          setupUI(document.querySelector('#joinsm'), () => { playSound('#click2'); });
-          setupUI(document.querySelector('#joinh'), () => { playSound('#click2'); });
+          // Lobby / Join (click sounds only; original portals removed)
+          setupUI(document.querySelector('#lobbybtn'), () => playSound('#click2'));
+          setupUI(document.querySelector('#joinsm'), () => playSound('#click2'));
+          setupUI(document.querySelector('#joinh'), () => playSound('#click2'));
 
           // Reset button
-          const resetEl = document.querySelector('#resetb');
-          setupUI(resetEl, () => reset());
+          setupUI(document.querySelector('#resetb'), () => reset());
 
           // Scoring tick
           setInterval(() => {
@@ -619,6 +617,11 @@
           setText(document.querySelector('#lastscore5'), String(lastscore5));
           setText(document.querySelector('#scoreshow'), '0');
           score = 0;
+
+          // Re-enable Start Game visibility if hidden by animation
+          const startBtn = document.querySelector('#startcc');
+          if (startBtn) startBtn.setAttribute('position', '-0.2 -0.02 -1.05');
+
           setTimeout(()=>{ gameStarted = true; }, 5000);
         }
       </script>
