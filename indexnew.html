@@ -32,7 +32,7 @@
 
       /* ===== Runner physics (lanes, jump, collisions; ground at y=0) ===== */
       AFRAME.registerComponent('runner-physics', {
-        schema: { gravity:{default:-9.8}, jumpVelocity:{default:6}, groundY:{default:0} },
+        schema: { gravity:{default:-9.8}, jumpVelocity:{default:15}, groundY:{default:0} },
         init() {
           this.velY = 0; this.grounded = true;
           this.targetLane = 1; // 0:-3, 1:0, 2:+3 on Z
