@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Ark — Open-roof V-tunnel, HUD fixed to camera, full functionality</title>
+    <title>Ark — Open-roof V-tunnel, HUD fixed, camera locked +X</title>
 
     <!-- A-Frame core -->
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
@@ -35,14 +35,14 @@
         schema: { gravity:{default:-9.8}, jumpVelocity:{default:6}, groundY:{default:0} },
         init() {
           this.velY = 0; this.grounded = true;
-          this.targetLane = 1; // 0:-3, 1:0, 2:+3 on Z
+          this.targetLane = 1; // lanes Z: -3, 0, +3
           this.lanes = [-3,0,3];
           this.size = new THREE.Vector3(0.8,1.6,0.8);
           this.playerBox = new THREE.Box3();
           this.obstacles = [];
           this.refreshObstacles = () => { this.obstacles = qa('.obstacle'); };
 
-          // Player stands with feet at y=0 (center at size.y/2)
+          // Player center at y = size.y/2 so feet are at y=0
           this.el.object3D.position.set(0, this.data.groundY + this.size.y/2, 0);
 
           window.addEventListener('keydown', e => {
@@ -64,10 +64,10 @@
           // Clamp Z to side walls (±10)
           pos.z = Math.max(-9.5, Math.min(9.5, pos.z));
 
-          // Gravity
+          // Gravity + ground
           this.velY += this.data.gravity*d;
           pos.y += this.velY*d;
-          const groundY = this.data.groundY + this.size.y/2; // floor at y=0
+          const groundY = this.data.groundY + this.size.y/2;
           if(pos.y<=groundY){ pos.y=groundY; this.velY=0; this.grounded=true; }
 
           // Player AABB
@@ -76,7 +76,7 @@
           const max = new THREE.Vector3().copy(pos).add(half);
           this.playerBox.min.copy(min); this.playerBox.max.copy(max);
 
-          // Collisions with blocks: hard reset game immediately
+          // Collision with obstacles → hard reset
           const obs = Array.isArray(this.obstacles) ? this.obstacles : [];
           for(const e of obs){
             const wp=new THREE.Vector3(); e.object3D.getWorldPosition(wp);
@@ -93,7 +93,7 @@
       let timers = [];
       let intervals = [];
       let gameStarted = false;
-      let startWired = false; // prevents double-start bug
+      let startWired = false;
       let scoring = false;
       let score = 0;
       let lastscore=0,lastscore2=0,lastscore3=0,lastscore4=0,lastscore5=0;
@@ -103,9 +103,9 @@
       function clearIntervals(){ intervals.forEach(i=>clearInterval(i)); intervals=[]; }
       function clearObstacles(){ qa('.obstacle').forEach(e=>e.parentNode.removeChild(e)); q('#player')?.components?.['runner-physics']?.refreshObstacles(); }
 
-      /* ===== Build tunnel (strict 3-piece; floor height 0.001 at y=0; V-shaped walls; NO ROOF) ===== */
+      /* ===== Build tunnel (3-piece; floor height 0.001, top at y=0; V-shaped walls; NO ROOF) ===== */
       function buildTunnel(){
-        // Remove any previous tunnel
+        // Remove previous tunnel to avoid stray geometry (including any "roof")
         const old=q('#tunnel'); if(old) old.remove();
 
         const scene=q('a-scene');
@@ -115,12 +115,12 @@
         scene.appendChild(tunnel);
 
         // Dimensions
-        const length = 2400;    // extends far in +X and -X
+        const length = 2400;           // extends far in +X and -X
         const wallHeight = 30;
-        const wallZ = 10;       // walls at ±10 on Z
-        const floorHeight = 0.001;  // ultra-thin floor
+        const wallZ = 10;              // walls start at ±10 on Z
+        const floorHeight = 0.001;     // ultra-thin floor
 
-        // Floor: top surface at y=0 ⇒ center at y = -floorHeight/2
+        // Floor: set height=0.001, position y = -0.0005 so top surface is exactly y=0
         const floor=document.createElement('a-box');
         floor.setAttribute('position', `0 ${-floorHeight/2} 0`);
         floor.setAttribute('width', `${length}`);
@@ -128,19 +128,19 @@
         floor.setAttribute('depth', `20`);
         floor.setAttribute('material', 'color:#1f4959; side:double');
 
-        // Left wall — tilt outward to form V
+        // Left wall: tilt outward to make V (top further negative Z)
         const left=document.createElement('a-box');
         left.setAttribute('position', `0 ${wallHeight/2} ${-wallZ}`);
-        left.setAttribute('rotation', `10 0 0`); // tilt outward (top moves further negative Z)
+        left.setAttribute('rotation', `10 0 0`); // tilt outward
         left.setAttribute('width', `${length}`);
         left.setAttribute('height', `${wallHeight}`);
         left.setAttribute('depth', `1`);
         left.setAttribute('material', 'color:#1f4959; side:double');
 
-        // Right wall — tilt outward to form V
+        // Right wall: tilt outward (top further positive Z)
         const right=document.createElement('a-box');
         right.setAttribute('position', `0 ${wallHeight/2} ${wallZ}`);
-        right.setAttribute('rotation', `-10 0 0`); // tilt outward (top moves further positive Z)
+        right.setAttribute('rotation', `-10 0 0`); // tilt outward
         right.setAttribute('width', `${length}`);
         right.setAttribute('height', `${wallHeight}`);
         right.setAttribute('depth', `1`);
@@ -151,13 +151,13 @@
         tunnel.appendChild(right);
       }
 
-      /* ===== Blocks: fall then rush at player down the tunnel ===== */
+      /* ===== Blocks: fall then rush at player ===== */
       const colors = {1:'#ff0000', 2:'#a041f4', 3:'#f47c41', 4:'#4158f4', 5:'#0618a3'};
 
       function spawnBlock(level, lane) {
         const laneZ = [-3,0,3][lane];
         const scene = q('a-scene');
-        const startX = 700; // far down the +X direction
+        const startX = 700;
         const fallH  = 35;
 
         const box = document.createElement('a-box');
@@ -166,7 +166,6 @@
         box.setAttribute('position', `${startX} ${fallH} ${laneZ}`);
         box.setAttribute('material', `color: ${colors[level]}; side: double; metalness:0; roughness:1`);
 
-        // fall to y=2
         box.setAttribute('animation__fall', {
           property: 'position',
           from: `${startX} ${fallH} ${laneZ}`,
@@ -174,7 +173,6 @@
           dur:  900,
           easing: 'easeOutCubic'
         });
-        // rush to past player
         box.setAttribute('animation__rush', {
           property: 'position',
           from: `${startX} 2 ${laneZ}`,
@@ -201,7 +199,7 @@
 
       /* ===== Music + gates ===== */
       function wireMusicAndGates(){
-        if (startWired) return; // prevent double wiring causing first-click anomaly
+        if (startWired) return;
         startWired = true;
 
         const target=q('#target'); if(!target) return;
@@ -242,7 +240,6 @@
           boss = true;
           scheduleBlocks(5, 60, 1200);
 
-          // Boss appears only now, rises from distance, approaches
           const bossE = q('#boss');
           if (bossE){
             bossE.setAttribute('visible','true');
@@ -258,7 +255,6 @@
           setTimeout(()=>play('#hah3'),4500);
         }, {once:true});
 
-        // Gate timers (original cadence)
         timers.push(setTimeout(()=>emit('start2',['#target']), 50000));
         timers.push(setTimeout(()=>emit('start3',['#target']),100000));
         timers.push(setTimeout(()=>emit('start4',['#target']),150000));
@@ -313,12 +309,12 @@
         buildTunnel();
 
         const p=q('#player'); if (p) {
-          // Start centered in tunnel; face +X (yaw +90°)
+          // Start centered, face down tunnel (+X). "Turn 90° to the right" = yaw -90°
           p.setAttribute('position','0 0.8 0');
           const cam = q('#playerCam');
-          if (cam) { 
-            cam.setAttribute('look-controls','enabled: false'); // lock orientation
-            cam.object3D.rotation.set(0, THREE.MathUtils.degToRad(90), 0); 
+          if (cam) {
+            cam.setAttribute('look-controls','enabled: false'); // lock
+            cam.object3D.rotation.set(0, THREE.MathUtils.degToRad(-90), 0); // look +X
           }
           const phys=p.components['runner-physics'];
           if (phys){ phys.targetLane=1; phys.velY=0; phys.refreshObstacles(); }
@@ -337,8 +333,8 @@
 
         // Start game (wire before emit)
         bindClick('#startcc', ()=>{
-          if (gameStarted) return; // ignore accidental re-clicks while running
-          wireMusicAndGates();     // ensure listeners are bound once
+          if (gameStarted) return;
+          wireMusicAndGates();
           play('#begin3');
           emit('start1',['#target']);
           scoring=true; gameStarted=true;
@@ -380,11 +376,11 @@
         // Initialize obstacle list
         q('#player')?.components?.['runner-physics']?.refreshObstacles();
 
-        // Ensure camera faces down the tunnel (+X) at start and stays locked
+        // Lock camera looking +X (down tunnel)
         const cam=q('#playerCam');
-        if (cam) { 
+        if (cam) {
           cam.setAttribute('look-controls','enabled: false');
-          cam.object3D.rotation.set(0, THREE.MathUtils.degToRad(90), 0); 
+          cam.object3D.rotation.set(0, THREE.MathUtils.degToRad(-90), 0); // turn right → +X
         }
       });
     </script>
@@ -411,15 +407,15 @@
         <a-asset-item id="run-obj" src="run.obj"></a-asset-item>
       </a-assets>
 
-      <!-- Lights: directional + ambient -->
+      <!-- Lights -->
       <a-light type="directional" intensity="1.4" position="150 25 15"></a-light>
       <a-light type="ambient" color="#ffffff" intensity="0.7"></a-light>
 
-      <!-- Player anchored; camera yaw +90° to face +X and locked; HUD fixed to camera face -->
+      <!-- Player anchored; camera locked to +X; HUD fixed to camera -->
       <a-entity id="player" position="0 0.8 0" runner-physics>
         <a-entity id="playerCam" camera look-controls="enabled: false" cursor-whitelist>
 
-          <!-- Attach audio to camera -->
+          <!-- Audio attached to camera -->
           <a-entity id="audio-root">
             <a-entity id="song"   sound="src:url(arktheme.wav);   loop:true; autoplay:false; volume:0.2"></a-entity>
             <a-entity id="song2"  sound="src:url(arkpregame.wav); loop:true; autoplay:false; volume:0.2"></a-entity>
@@ -437,7 +433,7 @@
             <a-entity id="lazer"  sound="src:url(lazer.wav);  loop:false; autoplay:false; volume:0.3"></a-entity>
           </a-entity>
 
-          <!-- HUD: bottom-centered row, rigidly attached to camera -->
+          <!-- HUD: bottom-centered row (attached to camera so it never drifts) -->
           <a-entity id="HUD" position="0 -0.85 -2.0">
             <a-entity id="hud-row" position="0 0 0">
               <!-- Left cluster -->
@@ -467,12 +463,12 @@
       <!-- Tunnel (strict 3-piece, open roof; floor height 0.001 at y=0; V walls) -->
       <a-entity id="tunnel"></a-entity>
 
-      <!-- Countdown images (script positions them to face the player) -->
+      <!-- Countdown images -->
       <a-plane id="threeb" src="#p3" position="0 -100 0" width="1" height="1" material="side: double"></a-plane>
       <a-plane id="twob"   src="#p2" position="0 -100 0" width="1" height="1" material="side: double"></a-plane>
       <a-plane id="oneb"   src="#p1" position="0 -100 0" width="1" height="1" material="side: double"></a-plane>
 
-      <!-- Boss (invisible until level 5) -->
+      <!-- Boss -->
       <a-entity id="boss" position="800 -60 0" rotation="0 90 0" scale="50 50 50"
                 obj-model="obj: #run-obj"
                 material="color:#cccccc; side: double"
@@ -484,7 +480,7 @@
       <!-- Reset button (explicit) -->
       <a-plane id="resetb" src="#resetp" width="0.7" height="0.2" position="13 0 0" rotation="0 -90 0" material="side: double" class="ui"></a-plane>
 
-      <!-- Minimal score history (text only) -->
+      <!-- Minimal score history -->
       <a-entity id="lastscore"  position="-14.8 2 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
       <a-entity id="lastscore2" position="-14.8 1.5 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
       <a-entity id="lastscore3" position="-14.8 1.0 0" rotation="0 90 0" text="value:0; color:#6FF3E8; width:6"></a-entity>
